@@ -33,7 +33,7 @@ class DaySim:
         self.scenario = scenario
         self.rng = streams
         self.ids = ids
-        self.target_days = max(1, min(5, days))
+        self.target_days = max(1, int(days))
         self.day = 1
         self.days_completed = 0
 
@@ -87,10 +87,12 @@ class DaySim:
         return {k: ing_total[k] for k in sorted(ing_total)}
 
     def get_plan_for_day(self, day_num):
+        # Contract 1.3 soak replays the five-day plan after day five.
+        plan_day = ((day_num - 1) % 5) + 1
         for p in self.day_plans:
-            if p["day"] == day_num:
+            if p["day"] == plan_day:
                 return p
-        return {"day": day_num, "dishes": {}, "ingredients": {}}
+        return {"day": plan_day, "dishes": {}, "ingredients": {}}
 
     def _init_current_day(self, initial=False):
         # 1. Cấu hình gather tuning theo active_upgrades
@@ -254,7 +256,7 @@ class DaySim:
             if shop_closed:
                 self.days_completed += 1
                 self.stock = {}
-                if self.days_completed >= self.target_days or self.day >= 5:
+                if self.days_completed >= self.target_days:
                     self.done = True
                     self.reason = "days_complete"
                 else:

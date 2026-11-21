@@ -1,54 +1,51 @@
-﻿# Phân công công việc nhóm
+﻿# Phân công nhóm — Phase 3 (TICKET-03)
 
-> Thay thế bằng kế hoạch Phase 2 theo TICKET-02. Thành viên chưa được ghi tên trong `TEAM.md`, nên tạm đánh số 1–4; điền handle và vai trò trước khi bắt đầu. Phạm vi ưu tiên là lõi Test Contract v1.1; chưa nhận mục mở rộng.
+> Phạm vi ưu tiên: lõi Test Contract v1.2 trong 35 phút (1:55–2:30). `TEAM.md` chưa có tên/handle, nên tạm dùng Thành viên 1–4. Điền tên và vai trò lúc kickoff. Chưa nhận mở rộng nếu schema, độ tươi, đơn đặt trước và smoke chưa đạt.
 
-## Thành viên 1 — Gather: số chuẩn, cá bơi và sinh cá
+## Thành viên 1 — Gather: độ tươi, mã cá thể và dòng lũ
 
-- **Phạm vi:** dữ liệu tuning gather trong `game.contract.json`; `chonoi/sim/gather.py`; validation/schema liên quan trong `chonoi/contract.py` và `chonoi/scenario.py`; test gather.
-- Cập nhật contract lên `1.1` theo số chuẩn ticket: thêm N5/N6, `ca_keo` và yield; thiết lập danh sách/miền độ sâu, điểm sinh, trọng số, chu kỳ và trần đàn.
-- Làm cá bơi 1.5 m/s, đổi hướng theo seed đúng các bước 120 tick, phản xạ ở mép; 8 đàn đầu ca; sinh tối đa một đàn ở lịch 360 tick, bỏ lượt khi không có điểm hợp lệ, đàn mới hoạt động từ tick sau.
-- Giữ tương thích gather độc lập/ngày và fixture `random_fish:false`; dùng `Streams`, `ids.sort_by_id`, `IdAllocator`.
-- **Bàn giao:** code, test số chuẩn/cá, và bằng chứng gather. Phối hợp Thành viên 2 về thứ tự di chuyển gather/quái; với Thành viên 4 về phase/tick trong `day`.
+- **Phạm vi:** `chonoi/sim/gather.py` và test Gather; phối hợp interface với chủ sở hữu kho trước khi sửa.
+- Chuyển giỏ sang danh sách cá thể `{id, kind, fresh}`. Mỗi lần hái/bắt thành công cấp ID `I1`, `I2`… theo thứ tự vào giỏ; dùng chung bộ cấp ID xuyên pha/Ngày, không tái sử dụng ID đã dùng hoặc bỏ.
+- Mỗi tick Gather giảm freshness theo `freshness.gather_decay_per_s`; phát `spoiled` theo ID khi freshness xuống dưới `spoiled_below`, không giữ cá thể ươn trong giỏ. Hái/bắt tạo cá thể với freshness ban đầu theo contract.
+- `lost`/`faint`/hit làm mất hàng theo LIFO và giữ đúng thứ tự cá thể; ngất bỏ toàn bộ phần còn lại, bàn giao kho rỗng.
+- Cài lịch dòng lũ theo `gather.current`: trạng thái/snapshot, tác động dòng theo độ sâu, cảnh báo và fixture `random_current:false`/`current_direction` theo ticket. Phối hợp Thành viên 4 về HUD và Integrator về tick chuyển pha.
+- **Bàn giao:** unit test độ tươi qua ngưỡng 30, event tick chính xác, ID/LIFO, hướng dòng và fixture tắt lịch; bằng chứng tại `docs/proof/phase-3/member-1-gather.*`.
 
-## Thành viên 2 — Gather: Cá Sấu, va chạm và ngất
+## Thành viên 2 — Quán: độ tươi, đặt món và đơn đặt trước
 
-- **Phạm vi:** `chonoi/sim/gather.py` (phần quái), tuning/schema quái, scenario và test.
-- Cài dữ liệu loài/quần thể theo ngày; patrol/chase, phát hiện và thoát chase, giới hạn độ sâu/biên; va chạm sau khi cả hai di chuyển, chọn mục tiêu gần nhất rồi theo id.
-- Xử lý trừ Máu, bất tử 90 tick, rơi `floor(đang mang/2)` theo LIFO, recoil 60 bước bắt đầu từ bước kế; hit gây ngất phát `faint` với cause/lost/hp và kết thúc gather ngay.
-- Giữ luật ngạt: sát thương ngạt xuyên bất tử, không làm rơi nguyên liệu; phối hợp Thành viên 1 để thứ tự tick khớp mục 4.5.
-- **Bàn giao:** test patrol/chase/hit/recoil/invulnerability/faint và bằng chứng. Không sửa lặp cùng khối `step` nếu chưa thống nhất với Thành viên 1.
+- **Phạm vi:** `chonoi/sim/quan.py` và test Quán; đây là chủ sở hữu duy nhất của luật trong module này.
+- Kho quán và `customers[].reserved` dùng cá thể theo ID. Mỗi tick Quán giảm freshness theo `freshness.quan_decay_per_s`; phát `spoiled` theo ID/location, bỏ hàng ươn và thử giữ lại đơn theo đúng thứ tự `order_tick`, rồi `table_id`.
+- Thực hiện chọn cá thể tươi nhất, hòa theo ID; chốt `base_price` khi giữ món và tính giá cuối `floor(base_price × reservations.price_multiplier)` trước khi tính boa.
+- Cài vòng đời reservation `scheduled → holding → waiting → served|failed`: giữ bàn trước giờ đến, chọn món theo kế hoạch trong `day`/đủ menu ở `quan`, giữ nguyên liệu, phục vụ, tính giá/boa; xử lý fail `occupied`, `stock`, `burnt`, `patience`, `closing`, nhả bàn/nguyên liệu và trừ uy tín đúng một lần.
+- **Bàn giao:** test các nhánh biên tại `spoiled_below`, giờ đến/giờ đóng ca, món cháy nếu bật, giá/boa, không phạt lặp; bằng chứng Quán Phase 3.
 
-## Thành viên 3 — Quán: số chuẩn, menu và phục vụ
+## Thành viên 3 — Hợp đồng kho cá thể và chuyển dữ liệu
 
-- **Phạm vi:** tuning `quan`/`menu`, `chonoi/sim/quan.py`, validation/schema và test quán.
-- Cập nhật hai bếp, bốn bàn, sáu món và công thức/giá/thời gian theo ticket. Cài vòng đời khách, giữ nguyên liệu, chọn món đủ nguyên liệu, nấu/lấy món/phục vụ, ăn, thanh toán, boa và uy tín theo số chuẩn.
-- Trong `day`, giới hạn lựa chọn món theo kế hoạch, chọn đều có seed, trừ nguyên liệu đã giữ; trong mode `quan` độc lập vẫn dùng toàn bộ sáu món. Thiếu món khi có bàn thì xử lý `no_dish` theo luật.
-- **Bàn giao:** test event và snapshot bếp/bàn/khách, ca kết thúc; xác nhận kho đầu vào khớp đầu ra gather. Trao đổi interface với Thành viên 4 sớm để ghép vòng ngày.
+- **Phạm vi:** chủ sở hữu duy nhất của `game.contract.json`, `chonoi/inventory.py`, validation trong `chonoi/contract.py`/`chonoi/scenario.py`, adapter file kho và bộ cấp ID cá thể dùng chung.
+- Nâng manifest lên `contract_version: 1.2`; thêm `freshness`, `gather.current`, `reservations` và kiểm tra dải/schema theo ticket. Kho file v1.2 chỉ nhận `{"items":[{"id","kind","fresh"}]}`; từ chối kho đếm v1.0/1.1, ID trùng/rỗng, kind lạ, fresh không hữu hạn hoặc ngoài `[0,100]` bằng mã 2.
+- Cập nhật scenario: `gather.hold`, `quan.stock`, `customers[].reserved`, `quan.reservations[]`, cờ tắt ngẫu nhiên và bộ kiểm mâu thuẫn/ID dùng đồng thời. Giữ độ chính xác freshness khi serialize/đọc lại và ghi file nguyên tử đúng một lần sau `gather_end`; hết tick trước kết thúc không đụng file đích.
+- Chốt adapter/API cá thể dùng chung cho Thành viên 1–2 trước khi họ tích hợp. Xử lý cấp ID liên tục qua ngày, hàng Shop chờ nhập, hàng nhập có `fresh:100`; ID duy nhất giữa mọi nơi chứa.
+- **Bàn giao:** test schema cũ bị từ chối, kho rỗng, migration/round-trip, precision quanh ngưỡng 30, ghi file và xung đột scenario.
 
-## Thành viên 4 — Vòng ngày, kế hoạch, Shop, pause/UI và tích hợp
+## Thành viên 4 — HUD, luồng hiển thị và tích hợp/release
 
-- **Phạm vi:** điều phối `day`/Shop/pause, `chonoi/headless.py`, `chonoi/runner.py` hoặc module điều phối mới; UI/HUD và test hộp đen; tài liệu kiểm chứng.
-- Cài chu trình DayIntro → gather → EveningIntro → quan → DayResult → Shop; kế hoạch D1–D5 và nguyên liệu tính từ công thức; chuyển kho trong bộ nhớ, kể cả khi ngất; giữ tiền/earned/uy tín/cấp qua ngày.
-- Cài Shop, mua upgrade theo dữ liệu, giới hạn cấp/tiền, áp cấp từ ngày kế; `shop_done`, tự đóng sau 600 tick; hoàn tất sau Shop ngày 5. Cài pause để dừng timer/gameplay và resume đúng cạnh.
-- Cập nhật CLI `--mode day --days`, output snapshot/event/end theo v1.1; làm menu/HUD cần cho luồng chơi và hỗ trợ smoke/regression toàn nhóm.
-- **Bàn giao:** smoke gather→quan và `day --days 1`/nhiều ngày, bằng chứng ở `docs/proof/phase-2/`, ma trận `docs/verification/phase-2.md`, kiểm tra tài liệu/nhánh/tag cùng Integrator.
+- **Phạm vi:** `chonoi/web/`, `chonoi/live.py`/client, smoke integration, tài liệu và release; tránh sửa luật `gather.py`/`quan.py`/adapter nếu chưa phối hợp với chủ sở hữu.
+- Hiển thị độ tươi/hàng ươn trong HUD Gather và Quán; hiển thị trạng thái/giờ đến/bàn của R1/R2; dòng lũ và cảnh báo. Không thay logic mô phỏng trong UI.
+- Ghép theo thứ tự adapter → Gather/Quán → UI; kiểm tra bàn giao trong cùng tick ở `day` không hao freshness thêm, kho `gather_end` đúng, Shop nhập hàng riêng với ID mới.
+- Chạy smoke kho qua file và trong `day`; chạy regression P1–P2 còn hiệu lực; lưu bằng chứng, cập nhật `docs/verification/phase-3.md`, `CHANGELOG.md`, `docs/clarify.md`, `docs/ai-usage-log.md`, retro. Gắn tag `phase-3` lên đúng commit `main` trước 2:30.
+- **Bàn giao:** PR/tích hợp có bằng chứng, không ghi đạt cho nhánh chưa chạy.
 
-## Phụ thuộc và cách ghép
+## Thứ tự phối hợp và điểm cần PO chốt
 
-1. Kickoff 5 phút: chốt một người Integrator (khuyến nghị Thành viên 4), người PO giữ `docs/clarify.md`; thống nhất `contract_version: 1.1`, schema và event giữa gather, quan, day/shop. Mọi người cùng rà soát thay đổi contract/tuning vì ảnh hưởng nhiều lát.
-2. Thành viên 1 và 2 cùng chốt thứ tự một tick gather theo mục 4.5 trước khi sửa `step`; Thành viên 3 gửi interface kho/menu cho Thành viên 4 trước khi luồng day bắt đầu.
-3. Làm trước các fixture cố định để day tích hợp sớm; ghép theo commit nhỏ, review chéo lát kề bên. Không sửa test để che lỗi luật; test thay đổi theo số chuẩn phải ghi lý do.
-4. Không nhận phần mở rộng (weapon/net/snake/burn/vendor/ca_ho/settings) cho tới khi lõi chạy và có bằng chứng. Dữ liệu gameplay lấy từ contract; RNG đi qua `Streams`, entity sort bằng `ids.sort_by_id`, ID cấp bằng `IdAllocator`.
+1. **Phút 0–7:** Integrator (khuyến nghị Thành viên 4) chốt API kho với Thành viên 3 và hai chủ module; ghi breaking change, thứ tự tích hợp, chủ sở hữu file và quyết định vào `docs/clarify.md`/`CHANGELOG.md`. Mọi người thống nhất item `{id,kind,fresh}` và cấp ID `I…` trước khi code song song.
+2. **Adapter trước:** Thành viên 3 đưa schema/API, kiểm validation và fixture migration lên nhánh tích hợp; Thành viên 1–2 viết luật theo API đã chốt. Không để manifest v1.2 chạy cùng adapter kho đếm cũ.
+3. **Phút 20:** smoke Gather một tick qua ngưỡng, ghi inventory file, nạp vào Quán với `--ticks 0`; so ID/kind/fresh. Sau đó smoke chuyển pha `day` trong cùng tick và cập nhật standup.
+4. **Phút 20–30:** ghép luật Quán/reservation và HUD; điều người đã xong sang lỗi tích hợp/test đang đỏ.
+5. **Phút 30–35:** chạy regression P1–P2 còn phù hợp, smoke ngày, ghi verification/proof, chốt `main` và tag `phase-3` trước 2:30.
 
-## Mốc bàn giao Phase 2
+Các câu ticket chưa quy định payload/event chi tiết (đặc biệt event cảnh báo/hết dòng lũ, và payload reservation khi hủy giữ nguyên liệu) phải được PO ghi quyết định trong `docs/clarify.md` trước khi module phát event; không tự bịa tên/payload.
 
-- **Phút 0–5:** chốt contract/interface, điền `TEAM.md`, cập nhật danh sách AC trong `docs/verification/phase-2.md`.
-- **Phút 5–20:** hoàn thành lõi các lát và cập nhật test cùng cấu hình/spec.
-- **Phút 20:** smoke gather→quan, lưu output ở `docs/proof/phase-2/`; standup và điều người đã xong sang lát trễ.
-- **Phút 20–45:** ghép `day`, Shop, pause/UI; chạy smoke một ngày, nhiều ngày và regression Phase 1 với số chuẩn.
-- **Phút 45–55:** cập nhật `docs/clarify.md`, `docs/ai-usage-log.md`, `docs/retro.md`; chốt verification/bằng chứng, gắn tag `phase-2` lên commit bàn giao trên `main` trước phút 55.
-
-## Kiểm chứng bắt buộc
+## Kiểm chứng chung
 
 ```bash
 PYTHONPATH=tests:. python3 -m unittest discover -s tests -v
@@ -57,4 +54,4 @@ python3 -m chonoi.headless --mode quan --seed 1 --ticks 600 --out quan.jsonl
 python3 -m chonoi.headless --mode day --days 1 --seed 1 --ticks 22200 --out day.jsonl
 ```
 
-Bổ sung chạy nhiều ngày (`--days 5`) và smoke chuyển kho theo ticket. Ghi lệnh, commit, kết quả và đường dẫn bằng chứng vào `docs/verification/phase-2.md`; không ghi “đạt” nếu chưa chạy được.
+Thêm smoke kho file v1.2 (bao gồm kho cũ trả mã 2) và fixture freshness 30→dưới 30. Ghi commit chạy, lệnh, kết quả và link bằng chứng trong `docs/verification/phase-3.md`; cập nhật fixtures cũ theo schema mới và ghi lý do thay test trong `CHANGELOG.md`.

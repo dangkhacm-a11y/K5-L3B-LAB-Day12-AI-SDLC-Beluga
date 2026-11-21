@@ -1,5 +1,6 @@
 {
   "contract_version": "1.1",
+  "extensions": ["weapon"],
   "team": "ten-nhom",
   "team_size": 4,
   "build_cmd": "true",
@@ -27,6 +28,8 @@
       "regrow_s": 20,
       "catch_radius": 2.0,
       "catch_cooldown_s": 0.5,
+      "weapon_cooldown_s": 3.0,
+      "weapon_push_dist": 3.0,
       "fish_yield": {"ca_linh": 3, "ca_loc": 1, "ca_keo": 2},
       "fish_speed": 1.5,
       "fish_turn_ticks": 120,
@@ -55,7 +58,27 @@
         {"id": "F6", "kind": "ca_loc", "pos": [90, 16], "heading_deg": 0},
         {"id": "F7", "kind": "ca_keo", "pos": [30, 24], "heading_deg": 0},
         {"id": "F8", "kind": "ca_keo", "pos": [75, 27], "heading_deg": 0}
-      ]
+      ],
+      "monsters": {
+        "invuln_ticks": 90,
+        "loss_ratio": 0.5,
+        "species": {
+          "ca_sau": {
+            "patrol_speed": 1.0,
+            "chase_speed": 3.0,
+            "detect_radius": 10.0,
+            "exit_radius": 16.0,
+            "depths": [10, 30],
+            "hit_radius": 1.5,
+            "recoil_ticks": 60,
+            "recoil_dist": 2.0
+          }
+        },
+        "spawns": [
+          {"id": "M1", "kind": "ca_sau", "pos": [60, 24], "waypoints": [[60, 24], [64, 24]], "from_day": 1},
+          {"id": "M2", "kind": "ca_sau", "pos": [85, 18], "waypoints": [[85, 18], [89, 18]], "from_day": 3}
+        ]
+      }
     },
     "quan": {
       "duration_s": 180,
@@ -130,6 +153,10 @@
         "hp": [
           {"level": 1, "price": 250, "hp_max": 4},
           {"level": 2, "price": 500, "hp_max": 5}
+        ],
+        "weapon": [
+          {"level": 1, "price": 300, "weapon_radius": 4.0, "stun_s": 2.0},
+          {"level": 2, "price": 600, "weapon_radius": 6.0, "stun_s": 3.0}
         ]
       }
     },

@@ -53,7 +53,6 @@ class Session:
         self.mode = mode
         self.tuning = tuning
         self.sim = build_sim(mode, tuning, scenario, seed, inventory, days=days)
-        self.tick = 0
 
     @property
     def done(self) -> bool:

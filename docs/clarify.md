@@ -13,3 +13,9 @@
 - Ngu?i d�ng ch?t gi? d?nh d�ng lu: ch?n ng?u nhi�n hu?ng `-1` ho?c `+1` qua `Streams`; ph�t `current_warning` tru?c khi b?t d?u; khi d? s�u d?t `min_depth`, c?ng `direction * speed` v�o v?n t?c ngang. `random_current:false` t?t chu k?, c�n `current_direction` c? d?nh hu?ng cho fixture.
 - L?ch m?c d?nh do `gather.current` trong contract v1.2 cung c?p. Gather snapshot c� `current:null` ho?c `{direction,ticks_left}`; `gather_end.data.inventory` d�ng `{items:[{id,kind,fresh}]}` theo th? t? v�o gi?.
 - Interface d� tri?n khai tru?c adapter v1.2; vi?c d?c/ghi scenario v� file kho thu?c Th�nh vi�n 3.
+
+## Phase 4 — Thành viên 1 (2026-11-21)
+
+- Ticket yêu cầu `bench_cmd` nhưng chưa định nghĩa benchmark harness/display target. Giả định hiện tại: đo tick throughput của simulation Gather trong tiến trình, gồm thời gian dựng Session/server; `avg_fps`/`p1_low_fps` trong artifact là ticks/s, không phải FPS render của browser. Cần PO chốt trước khi coi ngưỡng FPS là kết quả benchmark chính thức.
+- Soak dùng input rỗng, seed cố định, chạy `DaySim` qua Gather → Quán → Shop; kiểm tra độ bền vòng đời nhiều ngày, không chứng minh bot chơi đạt doanh thu. `DaySim` lặp lịch ngày 1–5 cho ngày 6–10.
+- Manifest gốc trước thay đổi khai báo contract 1.1 dù một phần mã Quán đã có v1.2. M1 chỉ đổi version marker và khai báo command; M3 cần tích hợp đầy đủ contract/kho v1.2 trước release.

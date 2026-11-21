@@ -43,7 +43,8 @@ thật: `python3 -m chonoi.live --mode quan --inventory kho.json`.
 
 ### Sáng tạo của nhóm
 
-UI Quán nhìn từ trên xuống với sàn bè, nước sông, đèn vàng, Út Sen, bảng
+- **Mở rộng Lao xua (`extensions: ["weapon"]`):** phím **Q** (`attack`) đẩy lùi thủy quái 3 m và làm choáng (cấp 1: bán kính 4 m, choáng 2 s; cấp 2: bán kính 6 m, choáng 3 s; hồi chiêu 3 s kể cả khi trượt). Bằng chứng kiểm thử: `tests/test_gather_monsters.py` (`WeaponExtensionTests`) và [docs/proof/phase-2/member-2-monsters.txt](docs/proof/phase-2/member-2-monsters.txt).
+- UI Quán nhìn từ trên xuống với sàn bè, nước sông, đèn vàng, Út Sen, bảng
 đơn/kiên nhẫn, bếp, kho khả dụng và nhật ký. Hình Canvas tự tạo, không có
 asset ngoài. UI chỉ gửi input/đọc snapshot, dùng cùng Session với headless;
 metadata HUD chỉ có ở live. Kho thử chỉ bật qua scenario. Bằng chứng lõi:

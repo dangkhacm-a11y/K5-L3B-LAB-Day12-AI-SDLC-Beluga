@@ -1,0 +1,15 @@
+﻿# Phase 2 — Thành viên 1: Gather cá và số chuẩn
+
+## Kiểm chứng
+
+- `python -m unittest test_gather_harvest.CatchFishTests test_gather_harvest.FishMovementTests -v` — đạt, 13 test.
+- `python -m unittest discover -s tests -v` — đạt, 57 test. Trên máy Windows, trong lúc chạy bộ test đổi tạm `headless_cmd` trong manifest sang `python -m chonoi.headless` vì alias `python3.exe` không chạy được; đã khôi phục lệnh contract trước khi bàn giao.
+- `python -m chonoi.headless --mode gather --seed 1 --ticks 600 --out docs/proof/phase-2/gather-seed1.jsonl` — chạy thành công; output kết thúc ở tick 600, có đủ N1–N6, 8 đàn ban đầu và event `fish_spawned` tại tick 360 (F9).
+
+## Phạm vi đã đối chiếu
+
+- Cá bơi 1.5 m/s, đổi hướng trước bước bơi thứ 120 theo stream có seed, phản xạ tại biên/dải độ sâu.
+- Lịch sinh mỗi 360 tick sau bước bơi; sinh tối đa một đàn, ID cấp tiếp nối; lọc điểm theo khoảng cách > 1 m; đủ trần 12 đàn.
+- `random_fish:false` giữ fixture đứng yên và tắt sinh cá.
+- Bắt cá yêu cầu đủ chỗ cho cả đàn; cá giữ nguyên và không đặt hồi chiêu nếu giỏ thiếu chỗ. Hồi 30 tick chỉ bắt đầu sau lần bắt thành công.
+- Tuning gather có ba loài cá, N5/N6, sáu nguyên liệu; manifest vẫn khai `python3 -m chonoi.headless`.

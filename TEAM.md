@@ -4,7 +4,7 @@
 
 | Thành viên | GitHub handle | Module chính | Vai quy trình | Người dự phòng cho |
 |---|---|---|---|---|
-| Đăng Khắc | `dangkhacm-a11y` | `sim/gather` | PO | `tad-4963` |
+| Đăng Khắc Hoàng Minh | `dangkhacm-a11y` | `sim/gather` | PO | `tad-4963` |
 | Trần Anh Dũng | `tad-4963` | `sim/gather`, `sim/quan`, `client/ui` | Dev / UI | `dangkhacm-a11y` |
 | Daniel Ha | `DanielHa01` | `sim/quan`, `contracts` | QA lead | `KhiemNTK` |
 | Nguyễn Trọng Khiêm | `KhiemNTK` | `sim/day`, `qa` | Integrator / Release | `DanielHa01` |

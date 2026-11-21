@@ -1,0 +1,22 @@
+Command:
+PYTHONPATH=tests;. python -m unittest discover -s tests -v
+
+Result (branch: feature/member-2-gather-harvest, 2026-11-21):
+test_cannot_catch_at_surface (test_gather_harvest.CatchFishTests.test_cannot_catch_at_surface) ... ok
+test_catch_ca_linh_underwater_and_cooldown (test_gather_harvest.CatchFishTests.test_catch_ca_linh_underwater_and_cooldown) ... ok
+test_catch_hold_full_keeps_fish (test_gather_harvest.CatchFishTests.test_catch_hold_full_keeps_fish) ... ok
+test_catch_partial_fill_caps_at_hold_capacity (test_gather_harvest.CatchFishTests.test_catch_partial_fill_caps_at_hold_capacity) ... ok
+test_catch_tie_break_nearest_then_smallest_id (test_gather_harvest.CatchFishTests.test_catch_tie_break_nearest_then_smallest_id) ... ok
+test_headless_gather_fish_and_dock_writes_inventory (test_gather_harvest.GatherHeadlessInventoryTests.test_headless_gather_fish_and_dock_writes_inventory) ... ok
+test_cannot_gather_when_underwater (test_gather_harvest.GatherNodeTests.test_cannot_gather_when_underwater) ... ok
+test_dock_has_priority_over_gather (test_gather_harvest.GatherNodeTests.test_dock_has_priority_over_gather) ... ok
+test_gather_hold_full_does_not_consume_node (test_gather_harvest.GatherNodeTests.test_gather_hold_full_does_not_consume_node) ... ok
+test_gather_ready_node_at_surface_and_regrow (test_gather_harvest.GatherNodeTests.test_gather_ready_node_at_surface_and_regrow) ... ok
+test_gather_tie_break_nearest_then_smallest_id (test_gather_harvest.GatherNodeTests.test_gather_tie_break_nearest_then_smallest_id) ... ok
+...
+Ran 43 tests in 26.832s
+OK
+
+Headless verification:
+python -m chonoi.headless --mode gather --seed 1 --ticks 600 --out docs/proof/phase-1/gather-seed1.jsonl
+Exit code: 0

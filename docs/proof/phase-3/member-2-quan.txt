@@ -1,0 +1,12 @@
+# Phase 3 — Thành viên 2: Quán độ tươi cá thể, chốt giá và đơn đặt trước
+
+## Kiểm chứng
+
+- `PYTHONPATH=tests;. python -m unittest tests/test_quan_phase3.py tests/test_quan_phase2.py tests/test_quan_customers.py tests/test_quan_member4.py tests/test_day_member4.py -v` — đạt, **49/49 test (0.986s)**.
+  - `QuanFreshnessAndPricingTests` (5 test): ngưỡng 30 chính xác bằng `Fraction(1, 240)`/tick (`30.0` ươn ở tick 1, `30.25` ươn ở tick 61), phát `spoiled` theo `id`, chọn cá thể tươi nhất hòa theo `id`, sắp `cook_started.items` theo `(kind, id)`, `base_price = floor(giá × trung bình fresh / 100)`, thử giữ lại theo `(order_tick, table_id)`, từ chối kho đếm / hàng ươn / trùng ID ở v1.2.
+  - `QuanReservationsTests` (4 test): giữ bàn ngay tick 0 khi `arrival_tick <= 1800` và chặn khách thường mới ngồi bàn giữ, `reservation_arrived` → `customer_arrived`, giá cuối `floor(base_price × 1.5)` trước khi tính boa `floor(giá × 0.2)`, `served` → `reservation_served`, xử lý fail `occupied`, `stock` (cả khi đến lẫn khi hàng giữ bị ươn), `burnt` (`dish_burnt(order_status="failed")` trước `reservation_failed`), `patience` (không cộng phạt khách thường), `closing` theo `id` đặt, không phạt lặp.
+- Đã kiểm tra tương thích cùng commit `a97a24a` (Gather Phase 3 độ tươi & dòng lũ của Thành viên 1).
+
+## Lưu ý phối hợp
+
+- `QuanSim` đang hỗ trợ song song **cả v1.1 (kho đếm)** và **v1.2 (kho cá thể + `freshness` + `reservations`)** theo gợi ý TICKET-03 §3, nên toàn bộ test Phase 1–2 vẫn xanh 100% trong lúc chờ Thành viên 3 đẩy schema/adapter v1.2 (`game.contract.json`, `inventory.py`, `scenario.py`, `contract.py`).

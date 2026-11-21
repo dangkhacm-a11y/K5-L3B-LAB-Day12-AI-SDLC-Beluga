@@ -9,6 +9,7 @@ Máy chủ HTTP nhỏ (ThreadingHTTPServer) phục vụ `chonoi/web/index.html` 
 
 Mô phỏng chạy 60 tick/s trong một luồng nền, dùng CÙNG lớp sim như headless (qua `runner.Session`).
 Client chỉ ĐỌC snapshot và tự bỏ qua trường chưa có, nên luật do nhóm viết thêm trường nào cũng không vỡ.
+Gather kết thúc: lưu kho (mặc định inventory.json), rồi mở Quán với đúng kho đó.
 Ngẫu nhiên vẫn đi qua `Streams` (seed); chỉ nhịp chạy theo đồng hồ thật, không đi vào luật.
 """
 
@@ -41,7 +42,7 @@ class LiveGame:
         self._args = (mode, tuning, scenario, seed, inventory)
         self.mode = mode
         self.tuning = tuning
-        self.inventory_out = inventory_out
+        self.inventory_out = (inventory_out or "inventory.json") if mode == "gather" else None
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = None
@@ -49,9 +50,9 @@ class LiveGame:
 
     def _reset(self):
         self.session = Session(*self._args)
+        self.mode = self.session.mode
         self.inputs = LiveInputs()
         self.events = []
-        self._saved = False
         self.error = None
 
     # --- luồng nền ----------------------------------------------------------------
@@ -84,18 +85,24 @@ class LiveGame:
 
     def _tick_once(self):
         s = self.session
-        if s.done:
+        if not s.done:
+            for row in s.step(self.inputs.advance()):
+                self.events.append(row)
+            del self.events[:-RECENT_EVENTS]
+        if self.mode != "gather" or not s.done or s.sim.reason == "error":
             return
-        for row in s.step(self.inputs.advance()):
-            self.events.append(row)
-        del self.events[:-RECENT_EVENTS]
-        if s.done and not self._saved:
-            self._saved = True
-            if self.inventory_out:
-                try:
-                    s.write_inventory_if_done(self.inventory_out)
-                except OSError as e:
-                    sys.stderr.write(f"lỗi ghi kho: {e}\n")
+        try:
+            s.write_inventory_if_done(self.inventory_out)
+        except OSError as e:
+            message = f"lỗi ghi kho: {e}"
+            if self.error != message:
+                sys.stderr.write(message + "\n")
+            self.error = message
+            return  # Giữ nguyên giỏ, thử lưu lại ở tick sau trước khi chuyển màn.
+        self.session = Session("quan", self.tuning, {}, self._args[3], s.sim.inventory_items())
+        self.mode = "quan"
+        self.inputs = LiveInputs()
+        self.error = None
 
     # --- API cho handler -----------------------------------------------------------
     def state_json(self) -> bytes:
@@ -160,8 +167,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, self.game.state_json())
         elif path in ("/", "/index.html"):
             try:
-                page = "restaurant.html" if self.game.mode == "quan" else "index.html"
-                with open(os.path.join(WEB_DIR, page), "rb") as f:
+                with open(os.path.join(WEB_DIR, "index.html"), "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
             except OSError:
                 self._send(404, b'{"error":"thieu index.html"}')
@@ -232,7 +238,8 @@ def main(argv=None) -> int:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--scenario")
     p.add_argument("--inventory", help="chỉ với quan: nạp kho từ file")
-    p.add_argument("--inventory-out", dest="inventory_out", help="chỉ với gather: ghi kho khi kết thúc buổi")
+    p.add_argument("--inventory-out", dest="inventory_out",
+                   help="chỉ với gather: ghi kho khi kết thúc buổi (mặc định inventory.json), rồi mở Quán")
     a = p.parse_args(argv)
     try:
         if a.inventory and a.mode != "quan":

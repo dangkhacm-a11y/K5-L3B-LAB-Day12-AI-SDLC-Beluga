@@ -1,12 +1,15 @@
 """Test cửa sổ chơi trực tiếp (chonoi.live). Chỉ dành cho starter Python: nhóm đổi ngôn ngữ thì xóa file này."""
 
 import json
+import os
+import tempfile
 import time
 import unittest
 import urllib.error
 import urllib.request
 
 from chonoi.contract import load_contract
+from chonoi.inventory import read_inventory
 from chonoi.live import LiveGame, LiveServer
 
 
@@ -27,6 +30,43 @@ def _post(url, obj):
 
 
 class LiveServerTest(unittest.TestCase):
+    def test_http_gather_transitions_to_playable_quan_with_saved_stock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "kho.json")
+            game = LiveGame("gather", load_contract()["tuning"],
+                            {"hold": ["ca_loc", "bong_sung", "bong_sung"]}, 1,
+                            inventory_out=path)
+            server = LiveServer(game, port=0)
+            server.start()
+            try:
+                self.assertEqual(_post(server.url + "input", {"interact": True}), 200)
+                deadline = time.monotonic() + 3
+                while time.monotonic() < deadline:
+                    state = json.loads(_get(server.url + "state")[1])
+                    if state["mode"] == "quan":
+                        break
+                    time.sleep(0.01)
+                self.assertEqual(state["mode"], "quan")
+                self.assertFalse(state["finished"])
+                self.assertEqual(state["stock"], {"ca_loc": 1, "bong_sung": 2})
+                self.assertEqual(read_inventory(path), {"ca_loc": 1, "bong_sung": 2})
+                self.assertIsNone(state["error"])
+                code, html = _get(server.url)
+                self.assertEqual(code, 200)
+                self.assertIn(b"<canvas", html)
+            finally:
+                server.stop()
+
+    def test_quan_page_is_served(self):
+        server = LiveServer(LiveGame("quan", load_contract()["tuning"], {}, 1), port=0)
+        server.start()
+        try:
+            code, html = _get(server.url)
+            self.assertEqual(code, 200)
+            self.assertIn(b"<canvas", html)
+        finally:
+            server.stop()
+
     def test_state_input_and_clean_stop(self):
         tuning = load_contract()["tuning"]
         server = LiveServer(LiveGame("gather", tuning, {}, 1), port=0)  # cổng ngẫu nhiên
@@ -56,6 +96,81 @@ class LiveServerTest(unittest.TestCase):
             server.stop()
         self.assertFalse(server.game._thread.is_alive())
         self.assertFalse(server._thread.is_alive())
+
+
+class LiveGatherTransitionTest(unittest.TestCase):
+    def test_gather_end_saves_and_transfers_stock_for_every_end_reason(self):
+        cases = [
+            ({"hold": ["ca_loc", "ca_loc", "ca_keo", "keo_neo"]}, True,
+             "docked", {"ca_loc": 2, "ca_keo": 1, "keo_neo": 1}),
+            ({"hold": ["bong_sung"], "time_left_ticks": 1}, False,
+             "time", {"bong_sung": 1}),
+            ({"hold": ["ca_loc"], "player": {"hp": 0}}, False,
+             "fainted", {}),
+        ]
+        for scenario, interact, reason, expected in cases:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "kho.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write('{"items":{"ca_linh":9}}')
+                game = LiveGame("gather", load_contract()["tuning"], scenario, 1,
+                                inventory_out=path)
+                self.assertEqual(read_inventory(path), {"ca_linh": 9})
+                game.set_input({"interact": interact})
+                game._tick_once()
+                self.assertEqual(game.mode, "quan")
+                state = json.loads(game.state_json())
+                self.assertEqual(state["mode"], "quan")
+                self.assertEqual(state["tick"], 0)
+                self.assertFalse(state["finished"])
+                self.assertEqual(state["stock"], expected)
+                self.assertEqual(state["available_stock"], expected)
+                self.assertIn("menu", state["meta"])
+                end = next(e for e in state["events"] if e["name"] == "gather_end")
+                self.assertEqual(end["data"], {"reason": reason, "inventory": {"items": expected}})
+                self.assertEqual(read_inventory(path), expected)
+                # Cooking must not overwrite the saved gather inventory on later ticks.
+                game.session.sim.stock.clear()
+                game._tick_once()
+                self.assertEqual(read_inventory(path), expected)
+                game.restart()
+                self.assertEqual(json.loads(game.state_json())["mode"], "gather")
+
+    def test_default_inventory_file_is_written_without_cli_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = os.getcwd()
+            try:
+                os.chdir(tmp)
+                game = LiveGame("gather", load_contract()["tuning"], {"hold": ["ca_loc"]}, 1)
+                game._tick_once()
+                self.assertFalse(os.path.exists("inventory.json"))
+                self.assertEqual(game.mode, "gather")
+                game.set_input({"interact": True})
+                game._tick_once()
+                self.assertEqual(read_inventory("inventory.json"), {"ca_loc": 1})
+                self.assertEqual(json.loads(game.state_json())["stock"], {"ca_loc": 1})
+            finally:
+                os.chdir(previous)
+
+    def test_failed_save_keeps_gather_inventory_and_retries_before_transition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, "missing")
+            path = os.path.join(folder, "kho.json")
+            game = LiveGame("gather", load_contract()["tuning"], {"hold": ["ca_loc"]}, 1,
+                            inventory_out=path)
+            game.set_input({"interact": True})
+            game._tick_once()
+            state = json.loads(game.state_json())
+            self.assertEqual(state["mode"], "gather")
+            self.assertEqual(state["hold"], ["ca_loc"])
+            self.assertTrue(state["error"])
+            os.mkdir(folder)
+            game._tick_once()
+            state = json.loads(game.state_json())
+            self.assertEqual(state["mode"], "quan")
+            self.assertIsNone(state["error"])
+            self.assertEqual(state["stock"], {"ca_loc": 1})
+            self.assertEqual(read_inventory(path), {"ca_loc": 1})
 
 
 if __name__ == "__main__":

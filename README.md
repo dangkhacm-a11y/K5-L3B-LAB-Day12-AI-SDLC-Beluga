@@ -27,6 +27,13 @@ Game cần chế độ **headless** theo Test Contract (`python3 -m chonoi.headl
 
 ### Chơi thử quán
 
+Chạy `python3 -m chonoi.live --mode gather` để chơi liên tiếp hai màn.
+Khi cập bến, hết giờ hoặc ngất, game lưu kho vào `inventory.json` trong thư mục
+chạy lệnh, rồi tự chuyển sang Quán với đúng nguyên liệu còn trong giỏ
+(ngất thì kho rỗng). HUD Quán hiển thị kho này. Có thể chọn file khác bằng
+`--inventory-out kho.json`. Nhấn **R** chơi lại từ đầu Gather với cùng seed/scenario.
+File kho chỉ được ghi khi Gather kết thúc; nấu ăn không sửa bản kho đã lưu.
+
 ```bash
 python3 -m chonoi.live --mode quan --scenario scenarios/restaurant-demo.json
 ```

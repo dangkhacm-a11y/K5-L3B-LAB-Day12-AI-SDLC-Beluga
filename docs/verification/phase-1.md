@@ -11,6 +11,9 @@
 | **AC-INT-01** (Liên thông kho E2E) | Gather xuất kho qua `--inventory-out`, Quán nạp qua `--inventory` và nấu món thành công | [unittest.txt](docs/proof/phase-1/unittest.txt) (`test_gather_inventory_to_quan_cooking_e2e`) | Đạt |
 | **AC-HEADLESS-01** (Headless Gather 600t) | Chạy mô phỏng gather 600 ticks tất định | [gather_seed1.jsonl](docs/proof/phase-1/gather_seed1.jsonl) | Đạt |
 | **AC-HEADLESS-02** (Headless Quán 600t) | Chạy mô phỏng quan 600 ticks tất định | [quan_seed1.jsonl](docs/proof/phase-1/quan_seed1.jsonl) | Đạt |
+| Gather lát 2: Hái nút ở mặt nước, chọn gần nhất (tie-break theo id nhỏ), mọc lại `node_regrown` | Unit test `GatherNodeTests` trong `tests/test_gather_harvest.py` | [member-2-tests.txt](../proof/phase-1/member-2-tests.txt) | Đạt (chờ PO xác nhận payload event trong `docs/clarify.md`) |
+| Gather lát 2: Bắt cá dưới nước bằng `catch`, hồi chiêu `catch_cd_ticks`, tie-break theo id | Unit test `CatchFishTests` trong `tests/test_gather_harvest.py` | [member-2-tests.txt](../proof/phase-1/member-2-tests.txt) | Đạt (chờ PO xác nhận luật partial fill & cooldown trong `docs/clarify.md`) |
+| Gather lát 2: Xử lý giỏ đầy `hold_full`, ưu tiên cập bến trước hái, xuất kho qua headless | Unit + headless test `GatherHeadlessInventoryTests`, `test_smoke_p1.py`, `gather-seed1.jsonl` | [member-2-tests.txt](../proof/phase-1/member-2-tests.txt), [gather-seed1.jsonl](../proof/phase-1/gather-seed1.jsonl) | Đạt |
 
 ## Đánh giá ngắn
 - **Yêu cầu đã đạt:**

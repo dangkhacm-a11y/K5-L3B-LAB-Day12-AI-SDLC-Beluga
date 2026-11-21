@@ -51,10 +51,9 @@ class TestIntegrationGatherQuanE2E(unittest.TestCase):
                     "customers": [{
                         "id": "C1",
                         "table_id": "T1",
-                        "dish": "ca_loc_nuong_trui",
+                        "dish_id": "ca_loc_nuong_trui",
                         "state": "waiting",
-                        "patience_ticks": 3600,
-                        "patience_max_ticks": 3600
+                        "patience_ticks_left": 3600
                     }]
                 }
             })
@@ -77,7 +76,7 @@ class TestIntegrationGatherQuanE2E(unittest.TestCase):
             rows = read_jsonl(quan_out)
             cook_ev = events(rows, "cook_started")
             self.assertEqual(len(cook_ev), 1)
-            self.assertEqual(cook_ev[0]["data"]["dish"], "ca_loc_nuong_trui")
+            self.assertEqual(cook_ev[0]["data"]["dish_id"], "ca_loc_nuong_trui")
             self.assertEqual(cook_ev[0]["data"]["stove_id"], "B1")
 
             # Kiểm tra sau khi nấu, nguyên liệu trong kho đã được trừ

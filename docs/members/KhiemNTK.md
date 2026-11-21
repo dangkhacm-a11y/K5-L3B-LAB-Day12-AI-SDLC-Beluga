@@ -1,13 +1,11 @@
 # KhiemNTK — phản tư cá nhân (≤ 200 từ)
 
 - **Tôi đã làm:**
-  - Nhận trách nhiệm Thành viên 4: Quán (Bếp, bàn, thanh toán, boa, uy tín, kết ca) và Tích hợp hệ thống Phase 1.
-  - Cài đặt toàn bộ logic tương tác tại bếp (`cook_started`, `dish_ready`, `dish_picked`) và tại bàn (`served`, `eating`, `paid`).
-  - Viết bộ unit test `tests/test_quan_member4.py` và integration test E2E `tests/test_integration_gather_quan.py`.
-  - Thực hiện kiểm chứng ma trận Phase 1, xuất log và bằng chứng JSONL tại `docs/proof/phase-1/`.
+  - **Phase 1**: Nhận Lát 4 Quán (bếp, bàn, thanh toán, boa, uy tín, kết ca), viết unit test `test_quan_member4.py` và integration test E2E `test_integration_gather_quan.py`.
+  - **Phase 2**: Cài đặt điều phối vòng ngày (`DaySim`), FSM chuyển pha, hệ thống Shop nâng cấp (`oxygen`, `hp`), cơ chế Pause/Resume và cờ CLI `--mode day --days <1..5>` v1.1. Viết bộ kiểm thử `test_day_member4.py` và xuất đầy đủ proof Phase 2.
 - **Tôi đã review:**
-  - Review hợp đồng kho `docs/contracts/` và logic giao tiếp giữa `GatherSim` và `QuanSim`.
+  - Hợp đồng Test Contract v1.1 (`game.contract.json`), sơ đồ kho liên thông và tính tất định của headless runner.
 - **AI sai ở đâu và tôi phát hiện thế nào:**
-  - Khi chạy trên Windows, lệnh `python3` trong `game.contract.json` gọi vào stub của Microsoft Store (mã lỗi 9009) thay vì `python.exe` thật. Tôi phát hiện qua traceback của subprocess và đã tạo wrapper/alias xử lý triệt để.
+  - AI khởi tạo nâng cấp kích hoạt ngay trong ngày hiện tại; tôi phát hiện qua spec TICKET-02 (nâng cấp mua ở Shop chỉ áp dụng từ ngày hôm sau) và đã tách thành `upgrades` và `active_upgrades`.
 - **Điều tôi học được:**
-  - Giữ code tinh gọn, dùng trực tiếp thư viện chuẩn Python thay vì thêm dependencies phức tạp giúp code chạy nhanh, dễ kiểm thử và không có nợ kỹ thuật.
+  - Tách bạch state giữa các phase và quản lý vòng đời FSM rõ ràng giúp tích hợp mượt mà, giữ vững tính tất định 100% qua hàng chục nghìn tick.

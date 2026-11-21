@@ -23,7 +23,6 @@ Các tính năng của phase sau chưa nằm trong khung này.
 import math
 
 from ..ids import id_key, sort_by_id
-from ..inventory import hold_to_items
 from .ramp import ramp_velocity
 
 TICK = 60.0
@@ -37,6 +36,9 @@ class GatherSim:
     def __init__(self, tuning, scenario, streams, ids, day=1, weapon_level=0):
         t = tuning["gather"]
         self.t = t
+        self.freshness = tuning.get("freshness", {
+            "initial": 100.0, "gather_decay_per_s": 0.0, "spoiled_below": 30.0,
+        })
         self.rng = streams
         self.ids = ids
         self.day = int(day)
@@ -59,9 +61,28 @@ class GatherSim:
         self.invuln_ticks = p.get("invuln_ticks", 0)
         self.catch_cd_ticks = p.get("catch_cd_ticks", 0)
         self.attack_cd_ticks = p.get("attack_cd_ticks", 0)
-        self.hold = list(scenario.get("hold", []))  # thứ tự nhặt, cuối mảng là mới nhất
+        self.hold = []
+        for entry in scenario.get("hold", []):
+            if isinstance(entry, dict):
+                item = dict(entry)
+            else:  # Compatibility with v1.0/1.1 in-process count fixtures until adapter v1.2 lands.
+                item = self._new_item(str(entry))
+            self.hold.append(item)
+        for item in self.hold:
+            ids.reserve(item["id"])
         self.time_left_ticks = scenario.get("time_left_ticks", int(round(t["duration_s"] * TICK)))
         self.phase_tick = 0
+        self.current_cfg = t.get("current", {
+            "interval_ticks": 600, "duration_ticks": 120, "warning_ticks": 60,
+            "min_depth": 10.0, "speed": 1.0,
+        })
+        self.random_current = scenario.get("random_current", True)
+        self.current_override = scenario.get("current_direction")
+        self._validate_current_config()
+        self.current_direction = None
+        self.current_ticks_left = 0
+        self.current_warning_direction = None
+        self.current_rng = streams.get("river_current")
         self.random_fish = scenario.get("random_fish", True)
         self.fish_turn_rng = streams.get("fish_turn")
         self.fish_spawn_rng = streams.get("fish_spawn")
@@ -95,8 +116,8 @@ class GatherSim:
         self.reason = None
 
     # --- giao diện cho runner -------------------------------------------------
-    def inventory_items(self) -> dict:
-        return hold_to_items(self.hold)
+    def inventory_items(self) -> list:
+        return [dict(item) for item in self.hold]
 
     def snapshot(self) -> dict:
         player = {"pos": self.pos, "vel": self.vel, "heading_deg": self.heading,
@@ -110,6 +131,9 @@ class GatherSim:
             "player": player,
             "hold": self.hold, "hold_count": len(self.hold),
             "hold_capacity": self.t["hold_capacity"],
+            "current": (None if self.current_direction is None else {
+                "direction": self.current_direction, "ticks_left": self.current_ticks_left,
+            }),
             "nodes": [{"id": n["id"], "pos": n["pos"], "kind": n["kind"],
                        "ready": n["regrow_ticks"] == 0, "regrow_ticks": n["regrow_ticks"]}
                       for n in sort_by_id(self.nodes)],
@@ -135,6 +159,8 @@ class GatherSim:
                 n["regrow_ticks"] -= 1
                 if n["regrow_ticks"] == 0:
                     events.append(("node_regrown", {"node_id": n["id"]}))
+        self._decay_hold(events)
+        self._update_current(events)
         # 2. bơi + chặn mép
         was_at_surface = self._at_surface()
         self._move(inp)
@@ -227,8 +253,71 @@ class GatherSim:
         space = max(0, cap - len(self.hold))
         added = min(qty, space)
         if added > 0:
-            self.hold.extend([kind] * added)
+            self.hold.extend(self._new_item(kind) for _ in range(added))
         return added
+
+    def _validate_current_config(self):
+        """Reject schedules that cannot fit into one current cycle."""
+        interval = int(self.current_cfg["interval_ticks"])
+        duration = int(self.current_cfg["duration_ticks"])
+        warning = int(self.current_cfg["warning_ticks"])
+        if interval <= 0 or duration <= 0 or duration > interval or warning < 0 or warning > interval:
+            raise ValueError("gather.current requires 0 < duration_ticks <= interval_ticks and 0 <= warning_ticks <= interval_ticks")
+        override = self.current_override
+        if override is not None and override not in (-1, 1):
+            raise ValueError("scenario.current_direction must be -1, 1, or null")
+
+    def _new_item(self, kind: str) -> dict:
+        return {
+            "id": self.ids.new("I"),
+            "kind": kind,
+            "fresh": float(self.freshness["initial"]),
+        }
+
+    def _decay_hold(self, events):
+        decay = float(self.freshness["gather_decay_per_s"]) / TICK
+        spoiled, kept = [], []
+        for item in self.hold:
+            item["fresh"] = max(0.0, round(float(item["fresh"]) - decay, 12))
+            if item["fresh"] < self.freshness["spoiled_below"]:
+                spoiled.append(item)
+            else:
+                kept.append(item)
+        self.hold = kept
+        for item in sort_by_id(spoiled):
+            events.append(("spoiled", {
+                "item_id": item["id"], "kind": item["kind"], "location": "hold",
+            }))
+
+    def _update_current(self, events):
+        if self.current_direction is not None:
+            self.current_ticks_left -= 1
+            if self.current_ticks_left <= 0:
+                self.current_direction = None
+                self.current_ticks_left = 0
+
+        if not self.random_current:
+            return
+
+        interval = int(self.current_cfg["interval_ticks"])
+        warning = int(self.current_cfg["warning_ticks"])
+        cycle_tick = self.phase_tick % interval
+        if warning > 0 and cycle_tick == interval - warning:
+            direction = self.current_override
+            if direction is None:
+                direction = self.current_rng.choice((-1, 1))
+            self.current_warning_direction = direction
+            events.append(("current_warning", {"direction": direction, "ticks_left": warning}))
+
+        if cycle_tick == 0:
+            direction = self.current_warning_direction
+            if direction is None:
+                direction = self.current_override
+            if direction is None:
+                direction = self.current_rng.choice((-1, 1))
+            self.current_direction = direction
+            self.current_ticks_left = int(self.current_cfg["duration_ticks"])
+            self.current_warning_direction = None
 
     def _try_gather_node(self, events):
         node = self._nearest_ready_node()
@@ -270,7 +359,7 @@ class GatherSim:
                 "hold_capacity": int(self.t["hold_capacity"]),
             }))
             return
-        self.hold.extend([fish["kind"]] * qty)
+        self.hold.extend(self._new_item(fish["kind"]) for _ in range(qty))
         self.catch_cd_ticks = int(round(self.t["catch_cooldown_s"] * TICK))
         self.fish = [f for f in self.fish if f["id"] != fish["id"]]
         events.append(("fish_caught", {
@@ -368,8 +457,7 @@ class GatherSim:
         m["pos"][1] = min(dhi, max(dlo, m["pos"][1]))
 
     def _faint(self, cause: str, events):
-        remaining = list(self.hold)
-        self.hold.clear()
+        remaining = [self.hold.pop() for _ in range(len(self.hold))]
         events.append(("faint", {"cause": cause, "hp": 0, "lost": remaining, "pos": list(self.pos)}))
         self._finish("fainted", events)
 
@@ -521,6 +609,8 @@ class GatherSim:
         speed = self.t["swim_speed"]
         mx, md = inp.move
         self.vel = ramp_velocity(self, (mx * speed, md * speed), int(self.t["ramp_max_ticks"]))
+        if self.current_direction is not None and self.pos[1] >= self.current_cfg["min_depth"]:
+            self.vel[0] += self.current_direction * self.current_cfg["speed"]
         if (mx, md) != (0.0, 0.0):
             self.heading = math.degrees(math.atan2(md, mx)) % 360
         b = self.t["bounds"]

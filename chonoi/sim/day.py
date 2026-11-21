@@ -107,7 +107,8 @@ class DaySim:
         # 2. Khởi tạo GatherSim
         sc_gather = copy.deepcopy(self.scenario.get("gather", {}))
         sc_gather["hold"] = []  # Giỏ làm mới đầu ngày
-        self.gather_sim = GatherSim(g_tuning, sc_gather, self.rng, self.ids)
+        weapon_lvl = self.active_upgrades.get("weapon", 0)
+        self.gather_sim = GatherSim(g_tuning, sc_gather, self.rng, self.ids, day=self.day, weapon_level=weapon_lvl)
         self.phase = "gather"
         self.phase_tick = 0
 
@@ -218,7 +219,7 @@ class DaySim:
             # Xử lý buy trước cạnh shop_done
             buy_cmd = getattr(inp, "buy", None)
             if buy_cmd:
-                if buy_cmd not in ("oxygen", "hp"):
+                if buy_cmd not in self.shop_upgrades:
                     events.append(("buy_failed", {"action": "buy", "reason": "unknown"}, "shop"))
                 else:
                     curr_lvl = self.upgrades.get(buy_cmd, 0)

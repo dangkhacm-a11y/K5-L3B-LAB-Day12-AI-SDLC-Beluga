@@ -19,10 +19,11 @@ from .sim.gather import GatherSim
 from .sim.quan import QuanSim
 
 
-def build_sim(mode, tuning, scenario, seed, inventory, days=1):
+def build_sim(mode, tuning, scenario, seed, inventory, days=1, day=1, active_upgrades=None):
     streams, ids = Streams(seed), IdAllocator()
     if mode == "gather":
-        return GatherSim(tuning, scenario, streams, ids)
+        weapon_level = int((active_upgrades or {}).get("weapon", 0))
+        return GatherSim(tuning, scenario, streams, ids, day=day, weapon_level=weapon_level)
     elif mode == "quan":
         return QuanSim(tuning, scenario, streams, ids, inventory=inventory)
     elif mode == "day":
@@ -49,10 +50,11 @@ def _common(sim, tick, sim_tick, phase_tick, tuning, state):
 class Session:
     """Một lượt chơi: dựng sim, bước từng tick, lấy snapshot / dòng end."""
 
-    def __init__(self, mode, tuning, scenario, seed, inventory=None, days=1):
+    def __init__(self, mode, tuning, scenario, seed, inventory=None, days=1, day=1, active_upgrades=None):
         self.mode = mode
         self.tuning = tuning
-        self.sim = build_sim(mode, tuning, scenario, seed, inventory, days=days)
+        self.sim = build_sim(mode, tuning, scenario, seed, inventory, days=days, day=day, active_upgrades=active_upgrades)
+        self.tick = 0
 
     @property
     def done(self) -> bool:

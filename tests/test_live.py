@@ -84,6 +84,12 @@ class LiveServerTest(unittest.TestCase):
             code, html = _get(base + "/")
             self.assertEqual(code, 200)
             self.assertIn(b"<canvas", html)
+            code, png = _get(base + "/assets/kenney_fish/fish_blue_outline.png")
+            self.assertEqual(code, 200)
+            self.assertTrue(png.startswith(b"\x89PNG"))
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                _get(base + "/assets/../index.html")
+            self.assertEqual(ctx.exception.code, 404)
             deadline = time.time() + 3
             while time.time() < deadline:
                 st2 = json.loads(_get(base + "/state")[1])

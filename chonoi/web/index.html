@@ -19,9 +19,33 @@
     width: 100vw;
     height: 100vh;
   }
+  body.hc { background: #000000; color: #ffffff; }
+  body.hc canvas { filter: contrast(1.45) saturate(1.25); }
+  #a11y-bar { position: fixed; top: 8px; right: 12px; z-index: 25; display: flex; gap: 6px; }
+  #a11y-bar button { background: rgba(8,15,20,.9); color: #eaf3f8; border: 1.5px solid rgba(255,255,255,.35); border-radius: 6px; padding: 5px 9px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; }
+  #a11y-bar button[aria-pressed="true"] { background: #ffea00; color: #000000; border-color: #ffffff; }
+  body.hc #a11y-bar button { background: #000000; color: #ffffff; border: 2px solid #ffea00; }
+  body.hc #a11y-bar button[aria-pressed="true"] { background: #ffea00; color: #000000; border-color: #ffffff; }
+  #alert-bar { position: fixed; top: 72px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; pointer-events: none; max-width: 92vw; }
+  .alert-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; font: 800 15px/1.2 system-ui, sans-serif; letter-spacing: .3px; border: 2px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  .alert-monster { background: #6a1b9a; color: #ffffff; border-color: #ea80fc; }
+  .alert-oxygen { background: #b71c1c; color: #ffffff; border-color: #ff8a80; }
+  .alert-angry { background: #e65100; color: #ffffff; border-color: #ffd180; }
+  body.hc .alert-pill { background: #000000; color: #ffea00; border: 3px solid #ffea00; font-size: 17px; }
+  body.hc .alert-oxygen { color: #ff5252; border-color: #ff5252; }
+  body.hc .alert-monster { color: #ff40ff; border-color: #ff40ff; }
+  #subtitle-box { position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%); z-index: 20; background: rgba(0,0,0,.82); color: #ffffff; border: 1.5px solid rgba(255,255,255,.35); border-radius: 8px; padding: 6px 14px; font: 600 14px/1.35 system-ui, sans-serif; pointer-events: none; display: none; max-width: 80vw; text-align: center; }
+  body.hc #subtitle-box { background: #000000; color: #ffea00; border: 2px solid #ffea00; font-size: 15px; }
 </style>
 </head>
 <body>
+<div id="a11y-bar" role="toolbar" aria-label="Tùy chọn trợ năng">
+  <button id="btn-hc" type="button" aria-pressed="false" title="Bật/tắt chế độ tương phản cao (H)">🌓 Tương phản cao (H)</button>
+  <button id="btn-mute" type="button" aria-pressed="false" title="Tắt/bật âm thanh (M)">🔊 Âm thanh (M)</button>
+  <button id="btn-sub" type="button" aria-pressed="true" title="Bật/tắt phụ đề SFX (C)">💬 Phụ đề SFX (C)</button>
+</div>
+<div id="alert-bar" role="alert" aria-live="assertive"></div>
+<div id="subtitle-box" role="status" aria-live="polite"></div>
 <canvas id="c"></canvas>
 <script>
 "use strict";
@@ -922,6 +946,160 @@ function drawQuan(w, h, now) {
 }
 
 // =============================================================================
+// TRỢ NĂNG PHASE 4: 3 CẢNH BÁO, TƯƠNG PHẢN CAO (H), TẮT TIẾNG (M) & PHỤ ĐỀ SFX (C)
+// =============================================================================
+const alertBar = document.getElementById("alert-bar");
+const subtitleBox = document.getElementById("subtitle-box");
+const btnHc = document.getElementById("btn-hc");
+const btnMute = document.getElementById("btn-mute");
+const btnSub = document.getElementById("btn-sub");
+let highContrast = false, muted = false, subtitlesOn = true;
+try {
+  highContrast = localStorage.getItem("chonoi_hc") === "1";
+  muted = localStorage.getItem("chonoi_muted") === "1";
+  if (localStorage.getItem("chonoi_sub") === "0") subtitlesOn = false;
+} catch (e) {}
+
+function syncA11yUI() {
+  document.body.classList.toggle("hc", highContrast);
+  btnHc.setAttribute("aria-pressed", String(highContrast));
+  btnMute.setAttribute("aria-pressed", String(muted));
+  btnMute.textContent = muted ? "🔇 Đã tắt tiếng (M)" : "🔊 Âm thanh (M)";
+  btnSub.setAttribute("aria-pressed", String(subtitlesOn));
+  btnSub.textContent = subtitlesOn ? "💬 Phụ đề SFX: BẬT (C)" : "💬 Phụ đề SFX: TẮT (C)";
+  if (!subtitlesOn) subtitleBox.style.display = "none";
+  try {
+    localStorage.setItem("chonoi_hc", highContrast ? "1" : "0");
+    localStorage.setItem("chonoi_muted", muted ? "1" : "0");
+    localStorage.setItem("chonoi_sub", subtitlesOn ? "1" : "0");
+  } catch (e) {}
+}
+btnHc.addEventListener("click", () => { highContrast = !highContrast; syncA11yUI(); });
+btnMute.addEventListener("click", () => { muted = !muted; syncA11yUI(); });
+btnSub.addEventListener("click", () => { subtitlesOn = !subtitlesOn; syncA11yUI(); });
+addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === "h") { highContrast = !highContrast; syncA11yUI(); }
+  else if (k === "m") { muted = !muted; syncA11yUI(); }
+  else if (k === "c") { subtitlesOn = !subtitlesOn; syncA11yUI(); }
+});
+syncA11yUI();
+
+let audioCtx = null;
+function playSfx(freq, durMs = 110, type = "sine") {
+  if (muted) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durMs / 1000);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + durMs / 1000);
+  } catch (e) {}
+}
+let activeSubtitle = "", subtitleUntil = 0, lastEventKey = "";
+const prevAlertFlags = { monster: false, oxygen: false, angry: false };
+const SFX_LABELS = {
+  gather: ["🌿 Hái được nguyên liệu!", 520, "triangle"],
+  fish_caught: ["🐟 Bắt được cá!", 660, "triangle"],
+  hold_full: ["🧺 Giỏ đã đầy!", 260, "sawtooth"],
+  dive: ["🌊 Lặn xuống nước", 320, "sine"],
+  surface: ["🫧 Ngoi lên mặt nước", 480, "sine"],
+  oxygen_empty: ["🫧 ✖ Oxy cạn — Hết hơi!", 190, "sawtooth"],
+  choke: ["💔 Ngạt thở — Mất 1 Máu!", 150, "square"],
+  monster_hit: ["🐊 Thủy quái cắn trúng!", 140, "sawtooth"],
+  attack: ["🔱 Phóng Lao xua!", 740, "triangle"],
+  monster_stunned: ["⭐ Thủy quái bị choáng!", 820, "sine"],
+  faint: ["😵 Ngất xỉu — Mất giỏ!", 120, "sawtooth"],
+  spoiled: ["⚠ Nguyên liệu bị ươn!", 240, "square"],
+  customer_arrived: ["🔔 Khách mới vào quán", 580, "sine"],
+  cook_started: ["🔥 Bắt đầu nấu món", 440, "triangle"],
+  dish_ready: ["🍲 Món đã chín!", 760, "sine"],
+  dish_picked: ["👐 Đã bưng món", 600, "sine"],
+  served: ["✅ Đã phục vụ khách", 700, "triangle"],
+  paid: ["💰 Khách thanh toán!", 880, "sine"],
+  customer_left: ["😠 Khách bỏ đi!", 210, "sawtooth"],
+  no_dish: ["⚠ Hết món nấu được!", 230, "square"],
+  reservation_arrived: ["📅 Khách đặt trước đã tới!", 640, "sine"],
+  reservation_failed: ["❌ Lỡ đơn đặt trước!", 180, "sawtooth"],
+};
+function showSubtitle(msg, ttlMs = 2600) {
+  activeSubtitle = msg;
+  subtitleUntil = performance.now() + ttlMs;
+  if (subtitlesOn && msg) {
+    subtitleBox.textContent = msg;
+    subtitleBox.style.display = "block";
+  }
+}
+function updateA11yOverlay(s, w, h) {
+  const evList = s.events || [];
+  if (evList.length) {
+    const last = evList[evList.length - 1];
+    const key = `${last.tick}:${last.name}:${JSON.stringify(last.data || {})}`;
+    if (key !== lastEventKey) {
+      lastEventKey = key;
+      const info = SFX_LABELS[last.name];
+      if (info) { playSfx(info[1], 120, info[2]); showSubtitle("[SFX] " + info[0]); }
+    }
+  }
+  if (subtitlesOn && activeSubtitle && performance.now() > subtitleUntil) {
+    subtitleBox.style.display = "none";
+    activeSubtitle = "";
+  }
+  const alerts = [];
+  const meta = s.meta || {};
+  if (s.mode === "quan") {
+    const patMax = (meta.patience_s || 60) * 60;
+    const angryTables = (s.customers || [])
+      .filter((c) => c.state === "waiting" && c.patience_ticks_left !== undefined && (c.patience_ticks_left / patMax) < 0.25)
+      .map((c) => c.table_id);
+    if (angryTables.length) {
+      ctx.save();
+      ctx.strokeStyle = highContrast ? "#ffea00" : "rgba(255, 111, 0, .9)";
+      ctx.lineWidth = highContrast ? 8 : 5;
+      ctx.strokeRect(4, 68, w - 8, h - 112);
+      ctx.restore();
+      alerts.push({ cls: "alert-angry", text: `😠 ⚠ KHÁCH SẮP GIẬN! (${angryTables.join(", ")})` });
+      if (!prevAlertFlags.angry) { playSfx(300, 150, "square"); showSubtitle(`[Cảnh báo] 😠 Khách bàn ${angryTables.join(", ")} sắp giận!`); }
+    }
+    prevAlertFlags.angry = angryTables.length > 0;
+    prevAlertFlags.monster = false;
+    prevAlertFlags.oxygen = false;
+  } else {
+    const p = s.player || {};
+    const mSpecies = (meta.monsters && meta.monsters.species) || {};
+    const monsterNear = (s.monsters || []).some((m) => {
+      const detR = (mSpecies[m.kind] && mSpecies[m.kind].detect_radius) || 10;
+      return m.state === "chase" || (p.pos && Math.hypot(p.pos[0] - m.pos[0], p.pos[1] - m.pos[1]) <= detR);
+    });
+    const lowOxy = Boolean(p.oxygen_ticks !== undefined && p.oxygen_max_ticks && (p.oxygen_ticks / p.oxygen_max_ticks) < 0.25);
+    const emptyOxy = Boolean(p.oxygen_ticks === 0);
+    if (monsterNear) {
+      ctx.save();
+      ctx.strokeStyle = highContrast ? "#ff40ff" : "rgba(186, 104, 200, .9)";
+      ctx.lineWidth = highContrast ? 8 : 6;
+      ctx.strokeRect(4, 68, w - 8, h - 124);
+      ctx.restore();
+      alerts.push({ cls: "alert-monster", text: "🐊 ⚠ THỦY QUÁI GẦN!" });
+      if (!prevAlertFlags.monster) { playSfx(220, 160, "sawtooth"); showSubtitle("[Cảnh báo] 🐊 Thủy quái đang ở rất gần!"); }
+    }
+    if (emptyOxy) alerts.push({ cls: "alert-oxygen", text: "🫧 ✖ HẾT HƠI! NGẠT!" });
+    else if (lowOxy) {
+      alerts.push({ cls: "alert-oxygen", text: "🫧 ⚠ OXY SẮP HẾT!" });
+      if (!prevAlertFlags.oxygen) { playSfx(360, 140, "square"); showSubtitle("[Cảnh báo] 🫧 Oxy sắp hết — ngoi lên ngay!"); }
+    }
+    prevAlertFlags.monster = monsterNear;
+    prevAlertFlags.oxygen = lowOxy;
+    prevAlertFlags.angry = false;
+  }
+  const html = alerts.map((a) => `<span class="alert-pill ${a.cls}">${a.text}</span>`).join("");
+  if (alertBar.innerHTML !== html) alertBar.innerHTML = html;
+}
+
+// =============================================================================
 // VÒNG LẶP RENDER KHUNG HÌNH (60 FPS CHUẨN GAME HIỆN ĐẠI)
 // =============================================================================
 function frame() {
@@ -929,7 +1107,7 @@ function frame() {
   const now = performance.now();
   const [w, h] = fit();
 
-  ctx.fillStyle = "#080f14";
+  ctx.fillStyle = highContrast ? "#000000" : "#080f14";
   ctx.fillRect(0, 0, w, h);
 
   if (snap) {
@@ -939,6 +1117,7 @@ function frame() {
       drawGather(w, h, now);
     }
     drawVignette(w, h);
+    updateA11yOverlay(snap, w, h);
     eventLog(w, h);
     overlay(w, h);
   } else {

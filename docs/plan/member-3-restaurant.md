@@ -1,4 +1,29 @@
-# Thành viên 3 — triển khai Quán theo PRD-0
+# Thành viên 3 — Quán Phase 2 (TICKET-02)
+
+## Lát Phase 2 đang thực hiện
+
+Nguồn: `Task.md` và TICKET-02 người dùng cung cấp. Kế thừa vòng đời khách,
+giữ nguyên liệu, thứ tự tick và payload D–F bên dưới; không viết lại engine.
+
+1. Cập nhật riêng tuning `quan`/`menu`: B1/B2, T1–T4, đủ sáu món theo
+   ticket; mở danh sách nguyên liệu kho cho `ca_keo`/`keo_neo`, giữ schema.
+2. Bổ sung `QuanSim(..., inventory=None, *, allowed_dishes=None)`.
+   Thành viên 4 truyền `allowed_dishes=day_plan["dishes"]` khi dựng Quán
+   (map được duyệt theo khóa). Không truyền thì dùng toàn bộ menu.
+   Lọc ID món trước khi lọc kho khả dụng; không dùng số suất làm hạn mức bán.
+   Fixture khách ngoài kế hoạch hoặc giữ quá kho bàn giao bị `BadInput`.
+3. Kiểm tuning công thức, giá, thời gian, tọa độ/ID bếp và bàn. Không đổi
+   schema khách/món/event. Member 4 giữ điều phối tiền/earned/uy tín qua ngày,
+   preset D1–D5, CLI day/pause và việc nâng version toàn manifest khi tích hợp.
+4. Chuẩn bị regression Phase 2, sửa fixture P1 giả định chỉ có một bàn để
+   giữ đúng ý nghĩa kiểm "đầy bàn". Người dùng tự chạy test; không ghi đạt,
+   không commit/push/tag trước khi có kết quả.
+
+Các thay đổi file khung `inventory.py`, `contract.py` chỉ phục vụ hai loại
+nguyên liệu mới và kiểm dữ liệu Quán. Thông báo trong phiên và ghi lại đây
+theo AGENTS.md; không đổi luật gather hay khối tuning gather.
+
+## Bàn giao Phase 1 (lịch sử)
 
 Nguồn yêu cầu: `Task.md` và PRD đầy đủ do người dùng cung cấp ngày 2026-11-21.
 Tài liệu này thay thế giả định trước khi có PRD, tập trung Test Contract D–F.

@@ -5,6 +5,7 @@ import math
 import os
 
 from .errors import BadInput
+from .inventory import validate_items
 
 DEFAULT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "game.contract.json")
 
@@ -166,7 +167,7 @@ def validate_tuning(t):
     if not isinstance(g, dict) or not isinstance(q, dict) or not isinstance(menu, dict):
         raise BadInput("tuning phải có gather, quan, menu")
     _validate_gather(g)
-    # Quán: dải hợp lệ P1 (PRD mục 13.2)
+    # Quán: dữ liệu dùng chung cho mode quan và day.
     _between("quan.duration_s", q.get("duration_s"), 60, 600)
     _bounds("quan", q.get("bounds"), ("x", "z"))
     _between("quan.patience_s", q.get("patience_s"), 20, 180)
@@ -185,9 +186,32 @@ def validate_tuning(t):
     if not (_num(q.get("tip_reputation")) and q["tip_reputation"] > 0):
         raise BadInput("quan.tip_reputation phải > 0")
     if q.get("burn_s") is not None:
-        raise BadInput("burn_s phải là null ở Phase 1")
-    # TODO(nhóm): bổ sung kiểm các khóa còn lại nếu muốn chặt hơn (bếp/bàn, uy tín, ...).
+        raise BadInput("burn_s phải là null khi chưa bật mở rộng burn")
+    _pos_in("quan.start_pos", q.get("start_pos"), q["bounds"], ("x", "z"))
+    _int_between("quan.carry_limit", q.get("carry_limit"), 1, 1)
+    _between("quan.reputation_min", q.get("reputation_min"), 0, 5)
+    _between("quan.reputation_max", q.get("reputation_max"), q["reputation_min"], 5)
+    _between("quan.reputation_initial", q.get("reputation_initial"), q["reputation_min"], q["reputation_max"])
+    for group in ("stoves", "tables"):
+        objects = q.get(group)
+        if not isinstance(objects, list) or not objects:
+            raise BadInput(f"tuning.quan.{group} phải là mảng không rỗng")
+        seen = set()
+        for obj in objects:
+            if (not isinstance(obj, dict) or not isinstance(obj.get("id"), str)
+                    or not obj["id"] or obj["id"] in seen):
+                raise BadInput(f"tuning.quan.{group}: mỗi phần tử cần id duy nhất")
+            seen.add(obj["id"])
+            _pos_in(f"quan.{group}.{obj['id']}.pos", obj.get("pos"), q["bounds"], ("x", "z"))
+    if not menu:
+        raise BadInput("tuning.menu phải là object không rỗng")
     for dish_id, d in menu.items():
+        if not isinstance(dish_id, str) or not dish_id or not isinstance(d, dict):
+            raise BadInput("menu: mỗi món cần id và object công thức")
         price, cook = d.get("price"), d.get("cook_s")
-        if isinstance(price, bool) or not isinstance(price, int) or price <= 0 or not _num(cook) or cook <= 0:
+        if (isinstance(price, bool) or not isinstance(price, int) or price <= 0
+                or not _num(cook) or not math.isfinite(cook) or cook <= 0):
             raise BadInput(f"menu.{dish_id}: price (nguyên) và cook_s phải > 0")
+        recipe = d.get("recipe")
+        if not validate_items(recipe) or any(qty == 0 for qty in recipe.values()):
+            raise BadInput(f"menu.{dish_id}: recipe cần nguyên liệu hợp lệ, số lượng nguyên dương")

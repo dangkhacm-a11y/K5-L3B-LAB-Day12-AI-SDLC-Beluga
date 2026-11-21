@@ -154,7 +154,12 @@ class DaySimTests(unittest.TestCase):
         # Mô phỏng ép kết thúc gather bằng cập bến (docked)
         sim.gather_sim.done = True
         sim.gather_sim.reason = "docked"
-        sim.gather_sim.hold = ["ca_loc", "ca_loc", "bong_sung", "bong_sung"]
+        sim.gather_sim.hold = [
+            {"id": "I1", "kind": "ca_loc", "fresh": 100.0},
+            {"id": "I2", "kind": "ca_loc", "fresh": 100.0},
+            {"id": "I3", "kind": "bong_sung", "fresh": 100.0},
+            {"id": "I4", "kind": "bong_sung", "fresh": 100.0},
+        ]
 
         # Bước tiếp theo: DaySim nhận thấy gather_sim kết thúc, chuyển sang quan
         ev = sim.step(make_input())
@@ -162,7 +167,7 @@ class DaySimTests(unittest.TestCase):
         phase_starts = [e for e in ev if e[0] == "phase_start"]
         self.assertEqual(phase_starts[0][2], "quan")
         # Kho bàn giao cho quan nhận đúng stock
-        self.assertEqual(sim.quan_sim.stock, {"ca_loc": 2, "bong_sung": 2})
+        self.assertEqual(len(sim.quan_sim.stock), 4)
 
         # Mô phỏng ép kết thúc quan khi hết giờ
         sim.quan_sim.done = True

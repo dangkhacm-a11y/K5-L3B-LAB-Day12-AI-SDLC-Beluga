@@ -112,13 +112,31 @@ class LiveGame:
             snap["meta"]["tick_hz"] = self.tuning["tick_hz"]
             if self.mode == "quan":
                 snap["meta"]["menu"] = self.tuning["menu"]
-                available = dict(snap["stock"])
-                for customer in snap["customers"]:
-                    for kind, qty in customer["reserved"].items():
-                        available[kind] = available.get(kind, 0) - qty
+                raw_stock = snap.get("stock", {})
+                if isinstance(raw_stock, list):
+                    available = {}
+                    for it in raw_stock:
+                        k = it["kind"] if isinstance(it, dict) else str(it)
+                        available[k] = available.get(k, 0) + 1
+                    for customer in snap.get("customers", []):
+                        res = customer.get("reserved", {})
+                        if isinstance(res, dict):
+                            for kind, qty in res.items():
+                                available[kind] = available.get(kind, 0) - qty
+                        elif isinstance(res, list):
+                            for it in res:
+                                k = it["kind"] if isinstance(it, dict) else str(it)
+                                available[k] = available.get(k, 0) - 1
+                else:
+                    available = dict(raw_stock)
+                    for customer in snap.get("customers", []):
+                        res = customer.get("reserved", {})
+                        if isinstance(res, dict):
+                            for kind, qty in res.items():
+                                available[kind] = available.get(kind, 0) - qty
                 snap["available_stock"] = available
                 sim = self.session.sim
-                snap["next_customer_tick"] = sim.next_customer_tick if sim.random_customers else None
+                snap["next_customer_tick"] = getattr(sim, "next_customer_tick", None) if getattr(sim, "random_customers", True) else None
             snap["events"] = list(self.events)
             snap["finished"] = self.session.done
             snap["reason"] = self.session.sim.reason if self.session.done else None
@@ -133,7 +151,7 @@ class LiveGame:
             if not ok:
                 raise ValueError("move phải là [a, b] trong [-1, 1]")
         buttons = {}
-        for b in ("interact", "catch"):
+        for b in ("interact", "catch", "attack", "pause", "shop_done"):
             if b in body:
                 if not isinstance(body[b], bool):
                     raise ValueError(f"{b} phải là boolean")

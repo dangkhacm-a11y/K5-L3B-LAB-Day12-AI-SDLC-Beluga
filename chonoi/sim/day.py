@@ -148,7 +148,10 @@ class DaySim:
             s.update(qsnap)
             s["time_left_ticks"] = self.quan_sim.time_left_ticks
         elif self.phase == "shop":
-            s["stock"] = {k: self.stock[k] for k in sorted(self.stock) if self.stock[k] > 0}
+            if isinstance(self.stock, list):
+                s["stock"] = list(self.stock)
+            else:
+                s["stock"] = {k: self.stock[k] for k in sorted(self.stock) if self.stock[k] > 0}
             s["time_left_ticks"] = self.shop_time_left
         return s
 
@@ -179,7 +182,7 @@ class DaySim:
 
             if self.gather_sim.done:
                 if self.gather_sim.reason == "fainted":
-                    self.stock = {}
+                    self.stock = [] if isinstance(getattr(self.gather_sim, "hold", None), list) and any(isinstance(x, dict) for x in self.gather_sim.hold) else {}
                 else:
                     self.stock = self.gather_sim.inventory_items()
 
@@ -207,7 +210,7 @@ class DaySim:
                 self.money = self.quan_sim.money
                 self.earned = self.quan_sim.earned
                 self.reputation = self.quan_sim.reputation
-                self.stock = dict(self.quan_sim.stock)
+                self.stock = list(self.quan_sim.stock) if isinstance(self.quan_sim.stock, list) else dict(self.quan_sim.stock)
 
                 # Dựng Shop cùng tick
                 self.phase = "shop"

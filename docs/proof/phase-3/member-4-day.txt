@@ -1,0 +1,12 @@
+test_day_full_cycle_gather_quan_shop_e2e (tests.test_day_member4.DaySimTests.test_day_full_cycle_gather_quan_shop_e2e) ... ok
+test_day_initial_events_and_plan (tests.test_day_member4.DaySimTests.test_day_initial_events_and_plan) ... ok
+test_day_pause_and_resume (tests.test_day_member4.DaySimTests.test_day_pause_and_resume) ... ok
+test_day_to_day_progression_and_active_upgrades (tests.test_day_member4.DaySimTests.test_day_to_day_progression_and_active_upgrades) ... ok
+test_headless_day_mode_run (tests.test_day_member4.DaySimTests.test_headless_day_mode_run) ... ok
+test_shop_buy_oxygen_and_hp (tests.test_day_member4.DaySimTests.test_shop_buy_oxygen_and_hp) ... ok
+test_shop_done_and_day_completion (tests.test_day_member4.DaySimTests.test_shop_done_and_day_completion) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.069s
+
+OK

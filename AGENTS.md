@@ -34,3 +34,4 @@
 - Kiểm luật khách/timer/closing: `python3 -m unittest tests.test_quan_customers -v` (`tests/test_quan_customers.py`).
 - Kiểm hợp đồng Quán hộp đen: `PYTHONPATH=tests:. python3 -m unittest tests.test_quan_contract -v` (`tests/test_quan_contract.py`).
 - Kiểm UI thật bằng Chrome: `python3 tools/check_restaurant_ui.py` (tùy chọn; cần Chrome).
+- Kiểm giỏ/kho bằng Chrome: `python3 tools/check_gather_ui.py`. Gather chỉ bật cá thể khi có `freshness` hoặc fixture cá thể; contract v1.1 giữ giỏ chuỗi/kho đếm. Giữ adapter kho cá thể upstream khi merge; `live.py` lấy kho khả dụng từ Quán để xử lý ID giữ chỗ; xem `docs/proof/gather-basket-fix.md`.

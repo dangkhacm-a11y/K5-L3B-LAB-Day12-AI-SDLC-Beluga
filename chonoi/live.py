@@ -112,31 +112,9 @@ class LiveGame:
             snap["meta"]["tick_hz"] = self.tuning["tick_hz"]
             if self.mode == "quan":
                 snap["meta"]["menu"] = self.tuning["menu"]
-                raw_stock = snap.get("stock", {})
-                if isinstance(raw_stock, list):
-                    available = {}
-                    for it in raw_stock:
-                        k = it["kind"] if isinstance(it, dict) else str(it)
-                        available[k] = available.get(k, 0) + 1
-                    for customer in snap.get("customers", []):
-                        res = customer.get("reserved", {})
-                        if isinstance(res, dict):
-                            for kind, qty in res.items():
-                                available[kind] = available.get(kind, 0) - qty
-                        elif isinstance(res, list):
-                            for it in res:
-                                k = it["kind"] if isinstance(it, dict) else str(it)
-                                available[k] = available.get(k, 0) - 1
-                else:
-                    available = dict(raw_stock)
-                    for customer in snap.get("customers", []):
-                        res = customer.get("reserved", {})
-                        if isinstance(res, dict):
-                            for kind, qty in res.items():
-                                available[kind] = available.get(kind, 0) - qty
-                snap["available_stock"] = available
                 sim = self.session.sim
-                snap["next_customer_tick"] = getattr(sim, "next_customer_tick", None) if getattr(sim, "random_customers", True) else None
+                snap["available_stock"] = sim.available_stock()
+                snap["next_customer_tick"] = sim.next_customer_tick if sim.random_customers else None
             snap["events"] = list(self.events)
             snap["finished"] = self.session.done
             snap["reason"] = self.session.sim.reason if self.session.done else None

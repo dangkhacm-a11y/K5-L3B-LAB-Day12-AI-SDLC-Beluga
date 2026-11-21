@@ -99,6 +99,43 @@ class LiveServerTest(unittest.TestCase):
 
 
 class LiveGatherTransitionTest(unittest.TestCase):
+    def test_fresh_items_transfer_with_ids_and_available_counts(self):
+        tuning = load_contract()["tuning"]
+        tuning["freshness"] = {
+            "initial": 100, "gather_decay_per_s": 0.5,
+            "quan_decay_per_s": 0.25, "spoiled_below": 30,
+        }
+        cases = [
+            ({}, True, "docked", 1),
+            ({"time_left_ticks": 1}, False, "time", 1),
+            ({"player": {"hp": 0}}, False, "fainted", 0),
+        ]
+        for extra, interact, reason, count in cases:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "inventory.json")
+                scenario = {"hold": [{"id": "I9", "kind": "ca_loc", "fresh": 75}], **extra}
+                game = LiveGame("gather", tuning, scenario, 1, inventory_out=path)
+                game.set_input({"interact": interact})
+                game._tick_once()
+                state = json.loads(game.state_json())
+                self.assertEqual(state["mode"], "quan")
+                self.assertIsNone(state["error"])
+                self.assertEqual(state["available_stock"], {"ca_loc": 1} if count else {})
+                self.assertEqual(read_inventory(path), state["stock"])
+                if count:
+                    self.assertEqual(state["stock"][0]["id"], "I9")
+                    self.assertAlmostEqual(state["stock"][0]["fresh"], 75 - 0.5 / 60)
+                    # Arrival reserves the only fish by ID; the live HUD must still serialize.
+                    game.session.sim.random_reservations = False
+                    for _ in range(tuning["quan"]["first_customer_tick"]):
+                        game._tick_once()
+                    state = json.loads(game.state_json())
+                    self.assertEqual(len(state["customers"]), 1)
+                    self.assertEqual(state["customers"][0]["reserved"], ["I9"])
+                    self.assertEqual(state["available_stock"], {})
+                else:
+                    self.assertEqual(state["stock"], [])
+
     def test_gather_end_saves_and_transfers_stock_for_every_end_reason(self):
         cases = [
             ({"hold": ["ca_loc", "ca_loc", "ca_keo", "keo_neo"]}, True,

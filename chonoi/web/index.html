@@ -152,6 +152,13 @@ const DISH_NAME = {
 };
 
 const kc = (k) => KIND_COLOR[k] || "#90a4ae";
+const itemKind = (item) => typeof item === "string" ? item : item.kind;
+function itemCounts(items) {
+  if (!Array.isArray(items)) return items || {};
+  const counts = {};
+  items.forEach((item) => { const kind = itemKind(item); counts[kind] = (counts[kind] || 0) + 1; });
+  return counts;
+}
 
 function fit() {
   const dpr = window.devicePixelRatio || 1;
@@ -462,7 +469,7 @@ function drawGather(w, h, now) {
   const meta = snap.meta || {};
   const b = meta.bounds || { x: [0, 100], d: [0, 30] };
   const X = b.x[1], D = b.d[1], SKY = 6;
-  const top = 70, bottom = 85;
+  const top = 70, bottom = 100;
   const s = Math.max(1, Math.min((w - 30) / (X + 4), (h - top - bottom) / (D + SKY + 1)));
   const ox = (w - s * (X + 4)) / 2 + 2 * s, oy = top + SKY * s;
   const sx = (x) => ox + x * s, sy = (d) => oy + d * s;
@@ -679,6 +686,8 @@ function drawGather(w, h, now) {
       weight: "bold",
       color: "#b0bec5"
     });
+    const names = itemCounts(snap.hold);
+    text(Object.keys(names).map((k) => `${KIND_NAME[k] || k} ×${names[k]}`).join(" · "), 16, y0 + sz + 14, { size: 12, color: "#b0bec5" });
   }
 
   text("WASD: Bơi · E: Hái/Bến · Space: Bắt cá · Q: Lao xua quái · P: Tạm dừng · R: Chơi lại", w - 16, h - 16, {
@@ -801,17 +810,8 @@ function drawQuan(w, h, now) {
   text(`Tiền: ${snap.money ?? 0}k · Uy tín: ${(snap.reputation ?? 0).toFixed(1)}⭐ · Điểm: ${snap.score ?? 0}`, 130, 32, { size: 16, weight: "bold", color: "#ffe082" });
 
   // Kho hàng Quán
-  let stockStr = "";
-  if (Array.isArray(snap.stock)) {
-    const counts = {};
-    snap.stock.forEach((it) => {
-      const k = typeof it === "object" ? it.kind : it;
-      counts[k] = (counts[k] || 0) + 1;
-    });
-    stockStr = Object.keys(counts).map((k) => `${KIND_NAME[k] || k} ×${counts[k]}`).join(" · ");
-  } else if (snap.stock) {
-    stockStr = Object.keys(snap.stock).map((k) => `${KIND_NAME[k] || k} ×${snap.stock[k]}`).join(" · ");
-  }
+  const counts = itemCounts(snap.stock);
+  const stockStr = Object.keys(counts).map((k) => `${KIND_NAME[k] || k} ×${counts[k]}`).join(" · ");
   text("📦 Kho nguyên liệu: " + (stockStr || "(Trống)"), 16, 56, { size: 13, color: "#e0e0e0" });
 
   text("WASD: Đi lại · E: Tương tác Bếp / Giao món Bàn · P: Tạm dừng · R: Chơi lại", w - 16, h - 16, {

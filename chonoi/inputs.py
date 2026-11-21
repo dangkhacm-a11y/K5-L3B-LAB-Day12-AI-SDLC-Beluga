@@ -10,14 +10,16 @@ import math
 
 from .errors import BadInput
 
-BUTTONS_V10 = ("interact", "catch")  # v1.0; các nút khác có từ phiên bản sau
+BUTTONS_V10 = ("interact", "catch")  # v1.0
+BUTTONS_V11 = ("interact", "catch", "pause", "shop_done", "attack", "photo")  # v1.1
 
 
 class InputState:
-    def __init__(self, move, held, edges):
+    def __init__(self, move, held, edges, buy=None):
         self.move = move
         self.held = held
         self._edges = edges
+        self.buy = buy
 
     def pressed(self, name: str) -> bool:
         return name in self._edges
@@ -35,7 +37,7 @@ def load_frames(path, buttons=BUTTONS_V10):
         raise BadInput("inputs phải có đúng một khóa 'frames' (mảng)")
     last = -1
     frames = []
-    allowed = {"tick", "move", *buttons}
+    allowed = {"tick", "move", "buy", *buttons}
     for i, fr in enumerate(data["frames"]):
         if not isinstance(fr, dict):
             raise BadInput(f"frame {i} không phải object")
@@ -48,6 +50,10 @@ def load_frames(path, buttons=BUTTONS_V10):
         if t <= last:
             raise BadInput(f"frame {i}: tick trùng hoặc giảm")
         last = t
+        if "buy" in fr:
+            b = fr["buy"]
+            if not isinstance(b, str) or not b:
+                raise BadInput(f"frame {i}: buy phải là chuỗi khác rỗng")
         if "move" in fr:
             m = fr["move"]
             ok = (isinstance(m, list) and len(m) == 2 and
@@ -79,16 +85,18 @@ class InputPlayer:
     def advance(self, k: int) -> InputState:
         """Đọc input có tick == k. Trả trạng thái dùng cho bước k."""
         edges = set()
+        buy = None
         fr = self._frames.get(k)
         if fr:
             if "move" in fr:
                 self._move = normalize(fr["move"])
+            buy = fr.get("buy")
             for b in self._buttons:
                 if b in fr:
                     if fr[b] and not self._held[b]:
                         edges.add(b)
                     self._held[b] = fr[b]
-        return InputState(self._move, dict(self._held), edges)
+        return InputState(self._move, dict(self._held), edges, buy=buy)
 
 
 class LiveInputs:

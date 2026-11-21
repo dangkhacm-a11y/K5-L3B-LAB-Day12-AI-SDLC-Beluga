@@ -26,6 +26,7 @@ class QuanSim:
         self.hz = tuning["tick_hz"]
         self.rng = streams
         self.ids = ids
+        self.allowed_dishes = None
         self.tick = 0
         self.next_customer_tick = self.t["first_customer_tick"]
         self.random_customers = scenario.get("random_customers", True)
@@ -280,7 +281,8 @@ class QuanSim:
         if table is None:
             return
         available = self.available_stock()
-        dishes = [dish_id for dish_id in sorted(self.menu)
+        menu_dishes = self.allowed_dishes if self.allowed_dishes is not None else self.menu
+        dishes = [dish_id for dish_id in sorted(menu_dishes)
                   if all(available.get(kind, 0) >= qty for kind, qty in self.menu[dish_id]["recipe"].items())]
         if not dishes:
             events.append(("no_dish", {}))

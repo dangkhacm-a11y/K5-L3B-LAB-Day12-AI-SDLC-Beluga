@@ -33,6 +33,32 @@ def _check_ids(name, arr):
         seen.add(e["id"])
 
 
+def _validate_day(data, tuning):
+    if "quan" in data:
+        q = data["quan"]
+        if not isinstance(q, dict):
+            raise BadInput("khối quan phải là object")
+        if "stock" in q:
+            raise BadInput("cấm quan.stock khi chạy day")
+        if "reputation" in q:
+            raise BadInput("cấm quan.reputation khi chạy day")
+        _validate_quan(q, tuning)
+    if "gather" in data:
+        g = data["gather"]
+        if not isinstance(g, dict):
+            raise BadInput("khối gather phải là object")
+        _validate_gather(g, tuning)
+    if "day" in data:
+        d = data["day"]
+        if not isinstance(d, dict):
+            raise BadInput("khối day phải là object")
+        money = d.get("money", 0)
+        earned = d.get("earned", 0)
+        if "money" in d or "earned" in d:
+            if not isinstance(money, int) or not isinstance(earned, int) or not (0 <= money <= earned):
+                raise BadInput("cần 0 <= money <= earned trong day")
+
+
 def load_scenario(path, mode: str, tuning: dict) -> dict:
     if path is None:
         return {}
@@ -41,7 +67,14 @@ def load_scenario(path, mode: str, tuning: dict) -> dict:
             data = json.load(f)
     except (OSError, ValueError) as e:
         raise BadInput(f"không đọc được scenario {path}: {e}")
-    if not isinstance(data, dict) or not set(data) <= {"gather", "quan"}:
+    if not isinstance(data, dict):
+        raise BadInput("scenario phải là object")
+    if mode == "day":
+        if not set(data) <= {"day", "gather", "quan"}:
+            raise BadInput("scenario chế độ day chỉ được có các khối 'day', 'gather', 'quan'")
+        _validate_day(data, tuning)
+        return data
+    if not set(data) <= {"gather", "quan"}:
         raise BadInput("scenario chỉ được có khối 'gather' hoặc 'quan'")
     if set(data) - {mode}:
         raise BadInput(f"khối sai mode: chạy --mode {mode} chỉ nhận khối '{mode}'")

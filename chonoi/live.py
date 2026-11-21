@@ -101,7 +101,17 @@ class LiveGame:
     def state_json(self) -> bytes:
         with self._lock:
             snap = self.session.snapshot()
-            snap["meta"] = self.tuning[self.mode]
+            snap["meta"] = dict(self.tuning[self.mode])
+            snap["meta"]["tick_hz"] = self.tuning["tick_hz"]
+            if self.mode == "quan":
+                snap["meta"]["menu"] = self.tuning["menu"]
+                available = dict(snap["stock"])
+                for customer in snap["customers"]:
+                    for kind, qty in customer["reserved"].items():
+                        available[kind] = available.get(kind, 0) - qty
+                snap["available_stock"] = available
+                sim = self.session.sim
+                snap["next_customer_tick"] = sim.next_customer_tick if sim.random_customers else None
             snap["events"] = list(self.events)
             snap["finished"] = self.session.done
             snap["reason"] = self.session.sim.reason if self.session.done else None
@@ -150,7 +160,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, self.game.state_json())
         elif path in ("/", "/index.html"):
             try:
-                with open(os.path.join(WEB_DIR, "index.html"), "rb") as f:
+                page = "restaurant.html" if self.game.mode == "quan" else "index.html"
+                with open(os.path.join(WEB_DIR, page), "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
             except OSError:
                 self._send(404, b'{"error":"thieu index.html"}')

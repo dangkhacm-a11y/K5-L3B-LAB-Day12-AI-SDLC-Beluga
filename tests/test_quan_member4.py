@@ -34,7 +34,7 @@ class TestQuanMember4(unittest.TestCase):
         scenario = {
             "player": {"pos": stove_pos},
             "stock": {"ca_loc": 2},
-            "customers": [{"id": "C1", "table_id": "T1", "dish": "ca_loc_nuong_trui"}],
+            "customers": [{"id": "C1", "table_id": "T1", "dish_id": "ca_loc_nuong_trui"}],
             "stoves": [{"id": "B1", "pos": stove_pos, "state": "idle"}]
         }
         sim = QuanSim(self.tuning, scenario, self.streams, self.ids)
@@ -44,7 +44,7 @@ class TestQuanMember4(unittest.TestCase):
         cook_ev = [ev for ev in events if ev[0] == "cook_started"]
         self.assertEqual(len(cook_ev), 1)
         self.assertEqual(cook_ev[0][1]["stove_id"], "B1")
-        self.assertEqual(cook_ev[0][1]["dish"], "ca_loc_nuong_trui")
+        self.assertEqual(cook_ev[0][1]["dish_id"], "ca_loc_nuong_trui")
         self.assertEqual(sim.stock.get("ca_loc", 0), 1)  # Đã trừ 1 ca_loc
         self.assertEqual(sim.stoves[0]["state"], "cooking")
 
@@ -55,7 +55,7 @@ class TestQuanMember4(unittest.TestCase):
 
         self.assertEqual(len(ready_events), 1)
         self.assertEqual(ready_events[0][1]["stove_id"], "B1")
-        self.assertEqual(ready_events[0][1]["dish"], "ca_loc_nuong_trui")
+        self.assertEqual(ready_events[0][1]["dish_id"], "ca_loc_nuong_trui")
         self.assertEqual(sim.stoves[0]["state"], "ready")
 
     def test_dish_picked(self):
@@ -64,15 +64,16 @@ class TestQuanMember4(unittest.TestCase):
         scenario = {
             "player": {"pos": stove_pos},
             "hand": None,
-            "stoves": [{"id": "B1", "pos": stove_pos, "state": "ready", "dish": "ca_loc_nuong_trui", "cook_ticks_left": 0}]
+            "customers": [{"id": "C1", "table_id": "T1", "dish_id": "ca_loc_nuong_trui", "order_status": "assigned"}],
+            "stoves": [{"id": "B1", "pos": stove_pos, "state": "ready", "dish": {"order_id": "C1", "dish_id": "ca_loc_nuong_trui", "base_price": 60}, "cook_ticks_left": 0}]
         }
         sim = QuanSim(self.tuning, scenario, self.streams, self.ids)
 
         events = sim.step(make_input(interact=True))
         pick_ev = [ev for ev in events if ev[0] == "dish_picked"]
         self.assertEqual(len(pick_ev), 1)
-        self.assertEqual(pick_ev[0][1]["dish"], "ca_loc_nuong_trui")
-        self.assertEqual(sim.hand, "ca_loc_nuong_trui")
+        self.assertEqual(pick_ev[0][1]["dish_id"], "ca_loc_nuong_trui")
+        self.assertEqual(sim.hand, {"order_id": "C1", "dish_id": "ca_loc_nuong_trui", "base_price": 60})
         self.assertEqual(sim.stoves[0]["state"], "idle")
         self.assertIsNone(sim.stoves[0]["dish"])
 
@@ -81,14 +82,14 @@ class TestQuanMember4(unittest.TestCase):
         table_pos = self.tuning["quan"]["tables"][0]["pos"]  # [9, 2]
         scenario = {
             "player": {"pos": table_pos},
-            "hand": "ca_loc_nuong_trui",
+            "hand": {"order_id": "C1", "dish_id": "ca_loc_nuong_trui", "base_price": 60},
             "customers": [{
                 "id": "C1",
                 "table_id": "T1",
-                "dish": "ca_loc_nuong_trui",
+                "dish_id": "ca_loc_nuong_trui",
                 "state": "waiting",
-                "patience_ticks": 3600,
-                "patience_max_ticks": 3600
+                "order_status": "assigned",
+                "patience_ticks_left": 3600
             }]
         }
         sim = QuanSim(self.tuning, scenario, self.streams, self.ids)
@@ -98,7 +99,7 @@ class TestQuanMember4(unittest.TestCase):
         events = sim.step(make_input(interact=True))
         served_ev = [ev for ev in events if ev[0] == "served"]
         self.assertEqual(len(served_ev), 1)
-        self.assertEqual(served_ev[0][1]["customer_id"], "C1")
+        self.assertEqual(served_ev[0][1]["order_id"], "C1")
         self.assertIsNone(sim.hand)  # Món đã trao cho khách
 
         # Khách ăn eat_s = 10s = 600 ticks
@@ -108,10 +109,10 @@ class TestQuanMember4(unittest.TestCase):
 
         self.assertEqual(len(paid_events), 1)
         p = paid_events[0][1]
-        self.assertEqual(p["customer_id"], "C1")
-        self.assertEqual(p["price"], 60)
+        self.assertEqual(p["order_id"], "C1")
+        self.assertEqual(p["base_price"], 60)
         self.assertEqual(p["tip"], 12)  # 20% của 60 là 12
-        self.assertEqual(p["total"], 72)
+        self.assertEqual(p["amount"], 72)
         self.assertAlmostEqual(sim.reputation, init_rep + 0.2)
         self.assertEqual(sim.money, 72)
         self.assertEqual(sim.earned, 72)
@@ -123,14 +124,14 @@ class TestQuanMember4(unittest.TestCase):
         table_pos = self.tuning["quan"]["tables"][0]["pos"]
         scenario = {
             "player": {"pos": table_pos},
-            "hand": "ca_loc_nuong_trui",
+            "hand": {"order_id": "C1", "dish_id": "ca_loc_nuong_trui", "base_price": 60},
             "customers": [{
                 "id": "C1",
                 "table_id": "T1",
-                "dish": "ca_loc_nuong_trui",
+                "dish_id": "ca_loc_nuong_trui",
                 "state": "waiting",
-                "patience_ticks": 1000,
-                "patience_max_ticks": 3600  # < 50%
+                "order_status": "assigned",
+                "patience_ticks_left": 1000  # < 50%
             }]
         }
         sim = QuanSim(self.tuning, scenario, self.streams, self.ids)
@@ -145,7 +146,7 @@ class TestQuanMember4(unittest.TestCase):
         self.assertEqual(len(paid_events), 1)
         p = paid_events[0][1]
         self.assertEqual(p["tip"], 0)
-        self.assertEqual(p["total"], 60)
+        self.assertEqual(p["amount"], 60)
         self.assertEqual(sim.reputation, init_rep)
 
     def test_interact_priority_distance_and_stove_first(self):
@@ -156,7 +157,7 @@ class TestQuanMember4(unittest.TestCase):
             "stoves": [{"id": "B1", "pos": [5.0, 6.0], "state": "idle"}],
             "tables": [{"id": "T1", "pos": [5.0, 6.0]}],
             "stock": {"ca_loc": 1},
-            "customers": [{"id": "C1", "table_id": "T1", "dish": "ca_loc_nuong_trui"}]
+            "customers": [{"id": "C1", "table_id": "T1", "dish_id": "ca_loc_nuong_trui"}]
         }
         sim = QuanSim(self.tuning, scenario, self.streams, self.ids)
         events = sim.step(make_input(interact=True))

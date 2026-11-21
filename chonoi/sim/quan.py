@@ -1,4 +1,4 @@
-"""Buổi tối — khách, giữ chỗ, bếp và phục vụ theo PRD-0 D–F.
+"""Buổi tối — khách, giữ chỗ, bếp và phục vụ theo TICKET-02 / PRD D–F.
 
 Kho gồm cả nguyên liệu đang giữ chỗ; chỉ trừ kho khi bắt đầu nấu.
 Mỗi món gắn với một đơn qua {order_id, dish_id, base_price}.
@@ -19,10 +19,17 @@ class QuanSim:
     mode = "quan"
     phase = "quan"
 
-    def __init__(self, tuning, scenario, streams, ids, inventory=None):
+    def __init__(self, tuning, scenario, streams, ids, inventory=None, *, allowed_dishes=None):
         _validate_quan(scenario, tuning)
         self.t = tuning["quan"]
         self.menu = tuning["menu"]
+        if allowed_dishes is not None:
+            if (not isinstance(allowed_dishes, (dict, list, tuple, set, frozenset))
+                    or any(not isinstance(dish_id, str) or dish_id not in self.menu
+                           for dish_id in allowed_dishes)):
+                raise BadInput("allowed_dishes phải chứa các id món có trong menu")
+            # Chỉ lọc ID; số suất kế hoạch không giới hạn lượt gọi món.
+            self.menu = {dish_id: self.menu[dish_id] for dish_id in sorted(allowed_dishes)}
         self.hz = tuning["tick_hz"]
         self.rng = streams
         self.ids = ids
@@ -51,6 +58,8 @@ class QuanSim:
         self.customers = []
         for source in sorted(scenario.get("customers", []), key=self._order_key):
             dish_id = source["dish_id"]
+            if dish_id not in self.menu:
+                raise BadInput(f"customers.{source['id']}: món ngoài kế hoạch ngày")
             state = source.get("state", "waiting")
             status = source.get("order_status", "reserved")
             if (state == "eating") != (status == "served"):

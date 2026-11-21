@@ -61,6 +61,8 @@ class QuanCustomers(unittest.TestCase):
         self.assertEqual(s.sim.customers[0]["table_id"],"T2")
 
     def test_full_table_skips_without_consuming_id(self):
+        # Fixture cố ý một bàn; preset Phase 2 có bốn bàn nên không còn đầy.
+        self.tuning["quan"]["tables"] = self.tuning["quan"]["tables"][:1]
         s=self.session({"stock":{"ca_loc":2},"customers":[self.customer()]})
         s.step(action())
         self.assertEqual(s.step(action()),[])

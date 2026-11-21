@@ -1,21 +1,21 @@
 # TEAM
 
-**Tên nhóm:** …  **Số người:** …  (khớp `team_size` trong `game.contract.json`)
+**Tên nhóm:** Beluga  **Số người:** 4  (khớp `team_size` trong `game.contract.json`)
 
 | Thành viên | GitHub handle | Module chính | Vai quy trình | Người dự phòng cho |
 |---|---|---|---|---|
-| | | `sim/gather` | | |
-| | | `sim/quan` | | |
-| | | `client/ui` | | |
-| | | `qa` | | |
+| Đăng Khắc | `dangkhacm-a11y` | `sim/gather` | PO | `tad-4963` |
+| Trần Anh Dũng | `tad-4963` | `sim/gather`, `sim/quan`, `client/ui` | Dev / UI | `dangkhacm-a11y` |
+| Daniel Ha | `DanielHa01` | `sim/quan`, `contracts` | QA lead | `KhiemNTK` |
+| Nguyễn Trọng Khiêm | `KhiemNTK` | `sim/day`, `qa` | Integrator / Release | `DanielHa01` |
 
 **Vai quy trình:** PO (đầu mối hỏi giảng viên, giữ `docs/clarify.md`) · Integrator (giữ `docs/contracts/`, gắn tag) · QA lead · Scrum/Release. Có thể kiêm.
 
-## Thỏa thuận làm việc nhóm (điền trong 15 phút kickoff, ≤ 10 dòng)
+## Thỏa thuận làm việc nhóm
 
-- Kênh liên lạc: …
-- Khi bất đồng về thiết kế: … (ví dụ: nói 2 phút, không xong thì Integrator quyết và ghi lại lý do)
-- Khi ai đó trễ hoặc vướng quá 10 phút: … (ví dụ: nói ngay trong kênh, người dự phòng nhận việc)
-- Giờ standup giữa phase: …
-- Cách đọc code của nhau (tùy chọn): … (ví dụ: mỗi người đọc lát kế bên; PR hoặc xem trực tiếp)
-- Cách làm việc với Git: … (ví dụ: push thẳng nhánh chính / nhánh ngắn rồi gộp; thống nhất ai gắn tag)
+- Kênh liên lạc: Nhóm chat chung và trao đổi trực tiếp tại bàn lab.
+- Khi bất đồng về thiết kế: Trao đổi tối đa 2 phút dựa trên Test Contract/Ticket; nếu chưa xong, Integrator quyết và ghi vào `docs/clarify.md`.
+- Khi ai đó trễ hoặc vướng quá 10 phút: Báo ngay trên kênh nhóm để người dự phòng nhận hỗ trợ hoặc ghép cặp.
+- Giờ standup giữa phase: Giữa mỗi phase (phút 20–30 ở Phase 1–2, phút 15–20 ở Phase 3–4), mỗi người báo 1 dòng.
+- Cách đọc code của nhau: Mở PR/diff theo lát kề bên trước khi gộp; bắt buộc chạy `unittest` trước khi đẩy lên `main`.
+- Cách làm việc với Git: Phase 1–2 làm trên nhánh `feature/*` rồi merge PR vào `main`; Phase 3–4 đồng bộ trực tiếp trên `main` theo quyền sở hữu file; Integrator gắn tag `phase-1`…`phase-4` và `v1.0.0`.

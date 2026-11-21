@@ -38,8 +38,9 @@ RECENT_EVENTS = 40
 class LiveGame:
     """Một lượt chơi + luồng nền bước 60 tick/s. Mọi truy cập trạng thái đi qua khóa."""
 
-    def __init__(self, mode, tuning, scenario, seed, inventory=None, inventory_out=None):
+    def __init__(self, mode, tuning, scenario, seed, inventory=None, inventory_out=None, active_upgrades=None):
         self._args = (mode, tuning, scenario, seed, inventory)
+        self._active_upgrades = dict(active_upgrades) if active_upgrades else None
         self.mode = mode
         self.tuning = tuning
         self.inventory_out = (inventory_out or "inventory.json") if mode == "gather" else None
@@ -49,9 +50,9 @@ class LiveGame:
         self._reset()
 
     def _reset(self):
-        self.session = Session(*self._args)
+        self.session = Session(*self._args, active_upgrades=self._active_upgrades)
         self.mode = self.session.mode
-        self.inputs = LiveInputs()
+        self.inputs = LiveInputs(buttons=("interact", "catch", "attack"))
         self.events = []
         self.error = None
 
@@ -110,33 +111,16 @@ class LiveGame:
             snap = self.session.snapshot()
             snap["meta"] = dict(self.tuning[self.mode])
             snap["meta"]["tick_hz"] = self.tuning["tick_hz"]
+            if self.mode == "gather":
+                sim = self.session.sim
+                snap["meta"]["weapon_level"] = getattr(sim, "weapon_level", 0)
+                tier = getattr(sim, "weapon_tiers", {}).get(snap["meta"]["weapon_level"])
+                snap["meta"]["weapon_radius"] = tier["weapon_radius"] if tier else 0
             if self.mode == "quan":
                 snap["meta"]["menu"] = self.tuning["menu"]
-                raw_stock = snap.get("stock", {})
-                if isinstance(raw_stock, list):
-                    available = {}
-                    for it in raw_stock:
-                        k = it["kind"] if isinstance(it, dict) else str(it)
-                        available[k] = available.get(k, 0) + 1
-                    for customer in snap.get("customers", []):
-                        res = customer.get("reserved", {})
-                        if isinstance(res, dict):
-                            for kind, qty in res.items():
-                                available[kind] = available.get(kind, 0) - qty
-                        elif isinstance(res, list):
-                            for it in res:
-                                k = it["kind"] if isinstance(it, dict) else str(it)
-                                available[k] = available.get(k, 0) - 1
-                else:
-                    available = dict(raw_stock)
-                    for customer in snap.get("customers", []):
-                        res = customer.get("reserved", {})
-                        if isinstance(res, dict):
-                            for kind, qty in res.items():
-                                available[kind] = available.get(kind, 0) - qty
-                snap["available_stock"] = available
                 sim = self.session.sim
-                snap["next_customer_tick"] = getattr(sim, "next_customer_tick", None) if getattr(sim, "random_customers", True) else None
+                snap["available_stock"] = sim.available_stock()
+                snap["next_customer_tick"] = sim.next_customer_tick if sim.random_customers else None
             snap["events"] = list(self.events)
             snap["finished"] = self.session.done
             snap["reason"] = self.session.sim.reason if self.session.done else None
@@ -189,6 +173,18 @@ class _Handler(BaseHTTPRequestHandler):
                     self._send(200, f.read(), "text/html; charset=utf-8")
             except OSError:
                 self._send(404, b'{"error":"thieu index.html"}')
+        elif path.startswith("/assets/"):
+            rel = path[len("/assets/"):]
+            assets_root = os.path.abspath(os.path.join(WEB_DIR, "assets"))
+            target = os.path.abspath(os.path.join(assets_root, rel))
+            if not target.startswith(assets_root + os.sep) or not target.lower().endswith(".png"):
+                self._send(404, b'{"error":"khong co"}')
+                return
+            try:
+                with open(target, "rb") as f:
+                    self._send(200, f.read(), "image/png")
+            except OSError:
+                self._send(404, b'{"error":"khong co"}')
         else:
             self._send(404, b'{"error":"khong co"}')
 
@@ -258,18 +254,22 @@ def main(argv=None) -> int:
     p.add_argument("--inventory", help="chỉ với quan: nạp kho từ file")
     p.add_argument("--inventory-out", dest="inventory_out",
                    help="chỉ với gather: ghi kho khi kết thúc buổi (mặc định inventory.json), rồi mở Quán")
+    p.add_argument("--weapon-level", dest="weapon_level", type=int, default=1, choices=[0, 1, 2],
+                   help="cấp Lao xua khi chơi thử gather (mặc định 1)")
     a = p.parse_args(argv)
     try:
         if a.inventory and a.mode != "quan":
             raise BadInput("--inventory chỉ dùng với quan")
         if a.inventory_out and a.mode != "gather":
             raise BadInput("--inventory-out chỉ dùng với gather")
-        tuning = load_contract()["tuning"]
+        contract = load_contract()
+        tuning = contract["tuning"]
         scenario = load_scenario(a.scenario, a.mode, tuning)
         inventory = read_inventory(a.inventory) if a.inventory else None
         if inventory is not None and "stock" in scenario:
             raise BadInput("vừa có quan.stock vừa có --inventory")
-        game = LiveGame(a.mode, tuning, scenario, a.seed, inventory, a.inventory_out)
+        upgrades = {"weapon": a.weapon_level} if "weapon" in contract.get("extensions", []) else None
+        game = LiveGame(a.mode, tuning, scenario, a.seed, inventory, a.inventory_out, active_upgrades=upgrades)
         server = LiveServer(game, a.host, a.port)
     except BadInput as e:
         sys.stderr.write(f"đầu vào sai: {e}\n")

@@ -23,6 +23,7 @@ Các tính năng của phase sau chưa nằm trong khung này.
 import math
 
 from ..ids import id_key, sort_by_id
+from ..inventory import hold_to_items
 from .ramp import ramp_velocity
 
 TICK = 60.0
@@ -36,6 +37,7 @@ class GatherSim:
     def __init__(self, tuning, scenario, streams, ids, day=1, weapon_level=0):
         t = tuning["gather"]
         self.t = t
+        self.item_mode = "freshness" in tuning or any(isinstance(item, dict) for item in scenario.get("hold", []))
         self.freshness = tuning.get("freshness", {
             "initial": 100.0, "gather_decay_per_s": 0.0, "spoiled_below": 30.0,
         })
@@ -69,7 +71,8 @@ class GatherSim:
                 item = self._new_item(str(entry))
             self.hold.append(item)
         for item in self.hold:
-            ids.reserve(item["id"])
+            if isinstance(item, dict):
+                ids.reserve(item["id"])
         self.time_left_ticks = scenario.get("time_left_ticks", int(round(t["duration_s"] * TICK)))
         self.phase_tick = 0
         self.current_cfg = t.get("current", {
@@ -116,7 +119,9 @@ class GatherSim:
         self.reason = None
 
     # --- giao diện cho runner -------------------------------------------------
-    def inventory_items(self) -> list:
+    def inventory_items(self) -> list | dict:
+        if not self.item_mode:
+            return hold_to_items(self.hold)
         return [dict(item) for item in self.hold]
 
     def snapshot(self) -> dict:
@@ -267,7 +272,9 @@ class GatherSim:
         if override is not None and override not in (-1, 1):
             raise ValueError("scenario.current_direction must be -1, 1, or null")
 
-    def _new_item(self, kind: str) -> dict:
+    def _new_item(self, kind: str) -> dict | str:
+        if not self.item_mode:
+            return kind
         return {
             "id": self.ids.new("I"),
             "kind": kind,
@@ -275,6 +282,8 @@ class GatherSim:
         }
 
     def _decay_hold(self, events):
+        if not self.item_mode:
+            return
         decay = float(self.freshness["gather_decay_per_s"]) / TICK
         spoiled, kept = [], []
         for item in self.hold:
@@ -457,7 +466,8 @@ class GatherSim:
         m["pos"][1] = min(dhi, max(dlo, m["pos"][1]))
 
     def _faint(self, cause: str, events):
-        remaining = [self.hold.pop() for _ in range(len(self.hold))]
+        remaining = list(reversed(self.hold)) if self.item_mode else list(self.hold)
+        self.hold.clear()
         events.append(("faint", {"cause": cause, "hp": 0, "lost": remaining, "pos": list(self.pos)}))
         self._finish("fainted", events)
 

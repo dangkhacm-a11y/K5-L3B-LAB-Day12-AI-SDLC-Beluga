@@ -1,0 +1,17 @@
+# Phase 4 — Thành viên 2: HUD 3 cảnh báo, tương phản cao và phụ đề SFX
+
+## Kiểm chứng tự động
+
+- `PYTHONPATH=tests;. python -m unittest tests/test_ui_alerts_p4.py tests/test_quan_phase3.py -v` — đạt, **12/12 test (0.977s)**.
+  - `test_html_contains_three_alerts_high_contrast_mute_and_sfx_subtitles`: xác minh `chonoi/web/index.html` có đủ 3 cảnh báo chữ + biểu tượng (`THỦY QUÁI GẦN!`, `OXY SẮP HẾT!` / `HẾT HƠI! NGẠT!`, `KHÁCH SẮP GIẬN!`), thanh công cụ trợ năng (`btn-hc`, `btn-mute`, `btn-sub`), chế độ tương phản cao (`body.hc`), và hộp phụ đề SFX (`subtitle-box`, `SFX_LABELS`).
+  - `test_gather_state_exposes_monster_near_and_low_oxygen_alerts`: xác minh `LiveGame` chế độ `gather` cung cấp đúng dữ liệu kích hoạt đồng thời cảnh báo thủy quái gần (`<= 10 m`) và oxy sắp hết (`< 25%`).
+  - `test_quan_state_exposes_angry_customer_alert`: xác minh `LiveGame` chế độ `quan` cung cấp đúng dữ liệu kích hoạt cảnh báo khách sắp giận (`patience < 25%`).
+
+## Kiểm tra thủ công & trợ năng
+
+- **Chế độ thường & tương phản cao (`H` hoặc nút `🌓 Tương phản cao`):**
+  - Gather: nền đen tuyền `#000000`, viền vàng `#ffea00`, thủy quái gần hiện khung tím sáng `8px` + badge `🐊 ⚠ THỦY QUÁI GẦN!`, oxy `< 25%` nhấp nháy vàng/đỏ + badge `🫧 ⚠ OXY SẮP HẾT!` (và `🫧 ✖ HẾT HƠI! NGẠT!` khi `0`).
+  - Quán: nền đen + viền vàng, khách chờ `< 25%` kiên nhẫn hiện biểu tượng `😠 !` trên bàn + thanh nhấp nháy + badge `😠 ⚠ KHÁCH SẮP GIẬN! (T1)`.
+- **Tắt âm thanh (`M` hoặc nút `🔊/🔇`) + Phụ đề SFX (`C`):**
+  - Khi tắt âm thanh (`muted = true`), Web Audio không phát tiếng nhưng hộp `#subtitle-box` (`role="status"`, `aria-live="polite"`) vẫn hiển thị phụ đề SFX/cảnh báo tiếng Việt đúng lúc (ví dụ `[Cảnh báo] 🐊 Thủy quái đang ở rất gần!`, `[SFX] 🐟 Bắt được cá!`, `[Cảnh báo] 😠 Khách bàn T1 sắp giận!`).
+- **Tương thích headless:** mọi thay đổi chỉ nằm ở lớp trình duyệt `chonoi/web/` và `chonoi/live.py`, không thay đổi luật mô phỏng hay output JSONL của `headless`.

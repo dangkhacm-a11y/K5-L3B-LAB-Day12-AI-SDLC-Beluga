@@ -112,6 +112,7 @@ class CatchFishTests(unittest.TestCase):
         sc = {
             "player": {"pos": [15, 5]},
             "nodes": [],
+            "random_fish": False,
             "fish": [
                 {"id": "F1", "kind": "ca_linh", "pos": [15, 5]},
                 {"id": "F2", "kind": "ca_loc", "pos": [15.5, 5]},
@@ -143,6 +144,7 @@ class CatchFishTests(unittest.TestCase):
         sc = {
             "player": {"pos": [15, 0.5]},  # <= surface_depth (0.5)
             "nodes": [],
+            "random_fish": False,
             "fish": [{"id": "F1", "kind": "ca_loc", "pos": [15, 1.5]}],
         }
         sess, evs = _step_frames(sc, [{"tick": 0, "catch": True}], ticks=1)
@@ -150,10 +152,17 @@ class CatchFishTests(unittest.TestCase):
         self.assertEqual(sess.snapshot()["player"]["catch_cd_ticks"], 0)
         self.assertEqual(len(sess.snapshot()["fish"]), 1)
 
+    def test_catch_without_fish_does_not_start_cooldown(self):
+        sc = {"player": {"pos": [15, 5]}, "nodes": [], "fish": [], "random_fish": False}
+        sess, evs = _step_frames(sc, [{"tick": 0, "catch": True}], ticks=1)
+        self.assertEqual(evs, [])
+        self.assertEqual(sess.snapshot()["player"]["catch_cd_ticks"], 0)
+
     def test_catch_tie_break_nearest_then_smallest_id(self):
         sc = {
             "player": {"pos": [20, 5]},
             "nodes": [],
+            "random_fish": False,
             "fish": [
                 {"id": "F10", "kind": "ca_loc", "pos": [19, 5]},
                 {"id": "F2", "kind": "ca_linh", "pos": [21, 5]},
@@ -171,6 +180,7 @@ class CatchFishTests(unittest.TestCase):
             "player": {"pos": [15, 5]},
             "hold": ["bong_sung"] * cap,
             "nodes": [],
+            "random_fish": False,
             "fish": [{"id": "F1", "kind": "ca_loc", "pos": [15, 5]}],
         }
         sess, evs = _step_frames(sc, [{"tick": 0, "catch": True}], ticks=1)
@@ -178,20 +188,96 @@ class CatchFishTests(unittest.TestCase):
         self.assertEqual(len(sess.snapshot()["fish"]), 1)
         self.assertEqual(sess.snapshot()["hold_count"], cap)
 
-    def test_catch_partial_fill_caps_at_hold_capacity(self):
+    def test_catch_requires_room_for_whole_school_and_does_not_start_cooldown(self):
         cap = load_contract()["tuning"]["gather"]["hold_capacity"]
         sc = {
             "player": {"pos": [15, 5]},
             "hold": ["bong_sung"] * (cap - 2),
             "nodes": [],
+            "random_fish": False,
             "fish": [{"id": "F1", "kind": "ca_linh", "pos": [15, 5]}],  # yield 3, chỉ còn 2 chỗ
         }
         sess, evs = _step_frames(sc, [{"tick": 0, "catch": True}], ticks=1)
-        self.assertEqual([e["name"] for e in evs], ["fish_caught", "hold_full"])
-        self.assertEqual(evs[0]["data"]["count"], 2)
-        self.assertEqual(sess.snapshot()["hold_count"], cap)
-        self.assertEqual(sess.snapshot()["hold"][-2:], ["ca_linh", "ca_linh"])
-        self.assertEqual(sess.snapshot()["fish"], [])
+        self.assertEqual([e["name"] for e in evs], ["hold_full"])
+        self.assertEqual(sess.snapshot()["hold_count"], cap - 2)
+        self.assertEqual(sess.snapshot()["hold"][-2:], ["bong_sung", "bong_sung"])
+        self.assertEqual(len(sess.snapshot()["fish"]), 1)
+        self.assertEqual(sess.snapshot()["player"]["catch_cd_ticks"], 0)
+
+
+class FishMovementTests(unittest.TestCase):
+    def test_fish_swims_at_contract_speed(self):
+        sc = {"nodes": [], "fish": [{"id": "F1", "kind": "ca_linh", "pos": [50, 7]}]}
+        sess, _ = _step_frames(sc, [], ticks=60)
+        fish = sess.snapshot()["fish"][0]
+        self.assertAlmostEqual(fish["pos"][0], 51.5, places=6)
+        self.assertAlmostEqual(fish["pos"][1], 7, places=6)
+
+    def test_fish_turns_on_120th_swim_step_and_seed_is_deterministic(self):
+        sc = {"nodes": [], "fish": [{"id": "F1", "kind": "ca_linh", "pos": [50, 7]}]}
+        one, _ = _step_frames(sc, [], ticks=120, seed=31)
+        two, _ = _step_frames(sc, [], ticks=120, seed=31)
+        fish_one = one.snapshot()["fish"][0]
+        fish_two = two.snapshot()["fish"][0]
+        self.assertEqual(fish_one, fish_two)
+        self.assertNotEqual(fish_one["heading_deg"], 0)
+
+    def test_spawn_happens_after_swim_at_tick_360(self):
+        sc = {"nodes": [], "fish": []}
+        sess, evs = _step_frames(sc, [], ticks=360, seed=9)
+        spawned = [e for e in evs if e["name"] == "fish_spawned"]
+        self.assertEqual(len(spawned), 1)
+        self.assertEqual(spawned[0]["tick"], 360)
+        self.assertEqual(len(sess.snapshot()["fish"]), 1)
+        self.assertEqual(sess.snapshot()["fish"][0]["id"], spawned[0]["data"]["id"])
+
+    def test_spawning_stops_at_contract_maximum(self):
+        tuning = load_contract()["tuning"]
+        sess = Session("gather", tuning, {}, seed=9)
+        player = InputPlayer([])
+        spawned = []
+        for _ in range(1440):
+            spawned.extend(e for e in sess.step(player.advance(sess.tick)) if e["name"] == "fish_spawned")
+        self.assertEqual(len(spawned), 4)
+        self.assertEqual(len(sess.snapshot()["fish"]), tuning["gather"]["fish_max"])
+
+    def test_spawn_skips_when_all_points_are_blocked(self):
+        tuning = load_contract()["tuning"]
+        g = tuning["gather"]
+        g["fish_speed"] = 0
+        g["fish_max"] = 40
+        points = {(x, d, kind)
+                  for kind, depths in g["fish_spawn_depths"].items()
+                  for x in g["fish_spawn_x"] for d in depths}
+        fish = []
+        positions = set()
+        for x, d, kind in points:
+            pos = (x, d)
+            if pos in positions:
+                continue
+            positions.add(pos)
+            fish.append({"id": f"F{len(fish) + 1}", "kind": kind, "pos": [x, d]})
+        sess = Session("gather", tuning, {"fish": fish}, seed=9)
+        player = InputPlayer([])
+        spawned = []
+        for _ in range(g["fish_spawn_ticks"]):
+            spawned.extend(e for e in sess.step(player.advance(sess.tick)) if e["name"] == "fish_spawned")
+        self.assertEqual(spawned, [])
+        self.assertEqual(len(sess.snapshot()["fish"]), len(positions))
+
+    def test_fish_reflects_at_x_boundary(self):
+        sc = {"nodes": [], "fish": [{"id": "F1", "kind": "ca_linh", "pos": [95.99, 7]}]}
+        sess, _ = _step_frames(sc, [], ticks=1)
+        fish = sess.snapshot()["fish"][0]
+        self.assertAlmostEqual(fish["pos"][0], 95.985, places=6)
+        self.assertAlmostEqual(fish["heading_deg"], 180, places=6)
+
+    def test_random_fish_false_keeps_fixture_static_and_disables_spawn(self):
+        sc = {"nodes": [], "random_fish": False,
+              "fish": [{"id": "F1", "kind": "ca_linh", "pos": [50, 7]}]}
+        sess, evs = _step_frames(sc, [], ticks=360)
+        self.assertEqual(sess.snapshot()["fish"][0]["pos"], [50.0, 7.0])
+        self.assertFalse(any(e["name"] == "fish_spawned" for e in evs))
 
 
 class GatherHeadlessInventoryTests(unittest.TestCase):

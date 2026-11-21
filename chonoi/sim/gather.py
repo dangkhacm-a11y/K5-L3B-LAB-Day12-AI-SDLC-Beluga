@@ -53,19 +53,23 @@ class GatherSim:
         self.catch_cd_ticks = p.get("catch_cd_ticks", 0)
         self.hold = list(scenario.get("hold", []))  # thứ tự nhặt, cuối mảng là mới nhất
         self.time_left_ticks = scenario.get("time_left_ticks", int(round(t["duration_s"] * TICK)))
+        self.phase_tick = 0
+        self.random_fish = scenario.get("random_fish", True)
+        self.fish_turn_rng = streams.get("fish_turn")
+        self.fish_spawn_rng = streams.get("fish_spawn")
         # nút và đàn cá: scenario THAY THẾ danh sách mặc định; random_fish=false tắt cá mặc định
         src_nodes = scenario["nodes"] if "nodes" in scenario else t["nodes"]
         self.nodes = [{"id": n["id"], "kind": n["kind"], "pos": [float(c) for c in n["pos"]],
                        "regrow_ticks": n.get("regrow_ticks", 0)} for n in src_nodes]
         if "fish" in scenario:
             src_fish = scenario["fish"]
-        elif scenario.get("random_fish", True):
+        elif self.random_fish:
             src_fish = t["fish_initial"]
         else:
             src_fish = []
-        # Đàn cá đứng yên ở phase này. Cá bơi / sinh thêm là việc của phase sau.
         self.fish = [{"id": f["id"], "kind": f["kind"], "pos": [float(c) for c in f["pos"]],
-                      "heading_deg": f.get("heading_deg", 0)} for f in src_fish]
+                      "heading_deg": f.get("heading_deg", 0), "age_ticks": f.get("age_ticks", 0)}
+                     for f in src_fish]
         for coll in (self.nodes, self.fish):
             for e in coll:
                 ids.reserve(e["id"])
@@ -98,6 +102,7 @@ class GatherSim:
     # --- một bước ---------------------------------------------------------------
     def step(self, inp):
         events = []
+        self.phase_tick += 1
         # 1. đồng hồ và hàng có sẵn: giảm bộ đếm, nút mọc lại
         self.time_left_ticks = max(0, self.time_left_ticks - 1)
         self.invuln_ticks = max(0, self.invuln_ticks - 1)
@@ -151,6 +156,8 @@ class GatherSim:
         # 5. hết giờ
         if self.time_left_ticks <= 0:
             self._finish("time", events)
+        elif self.random_fish:
+            self._advance_fish(events)
         return events
 
     # --- tiện ích ---------------------------------------------------------------
@@ -224,32 +231,85 @@ class GatherSim:
             }))
 
     def _try_catch_fish(self, events):
-        self.catch_cd_ticks = int(round(self.t["catch_cooldown_s"] * TICK))
         fish = self._nearest_fish()
         if fish is None:
             return
         qty = int(self.t["fish_yield"][fish["kind"]])
-        added = self._add_to_hold(fish["kind"], qty)
-        if added == 0:
+        space = int(self.t["hold_capacity"]) - len(self.hold)
+        if space < qty:
             events.append(("hold_full", {
                 "kind": fish["kind"],
                 "hold_count": len(self.hold),
                 "hold_capacity": int(self.t["hold_capacity"]),
             }))
             return
+        self.hold.extend([fish["kind"]] * qty)
+        self.catch_cd_ticks = int(round(self.t["catch_cooldown_s"] * TICK))
         self.fish = [f for f in self.fish if f["id"] != fish["id"]]
         events.append(("fish_caught", {
             "fish_id": fish["id"],
             "kind": fish["kind"],
-            "count": added,
+            "count": qty,
             "hold_count": len(self.hold),
         }))
-        if added < qty:
-            events.append(("hold_full", {
-                "kind": fish["kind"],
-                "hold_count": len(self.hold),
-                "hold_capacity": int(self.t["hold_capacity"]),
-            }))
+
+    def _advance_fish(self, events):
+        speed = self.t["fish_speed"] / TICK
+        for fish in sort_by_id(self.fish):
+            fish["age_ticks"] += 1
+            if fish["age_ticks"] % self.t["fish_turn_ticks"] == 0:
+                fish["heading_deg"] = self.fish_turn_rng.random() * 360.0
+            angle = math.radians(fish["heading_deg"])
+            vx, vd = math.cos(angle) * speed, math.sin(angle) * speed
+            xlo, xhi = self.t["fish_x"]
+            dlo, dhi = self.t["fish_depths"][fish["kind"]]
+            fish["pos"][0], vx = self._reflect_axis(fish["pos"][0], vx, xlo, xhi)
+            fish["pos"][1], vd = self._reflect_axis(fish["pos"][1], vd, dlo, dhi)
+            fish["heading_deg"] = math.degrees(math.atan2(vd, vx)) % 360.0
+
+        if self.phase_tick % self.t["fish_spawn_ticks"] == 0 and len(self.fish) < self.t["fish_max"]:
+            self._spawn_fish(events)
+
+    @staticmethod
+    def _reflect_axis(position, delta, lower, upper):
+        """Di chuyển một tick và phản xạ phần quãng đường còn lại ở hai đầu dải."""
+        position += delta
+        if position < lower:
+            position = lower + (lower - position)
+            delta = abs(delta)
+        elif position > upper:
+            position = upper - (position - upper)
+            delta = -abs(delta)
+        return position, delta
+
+    def _spawn_fish(self, events):
+        clearance = self.t["fish_spawn_clearance"]
+        candidates = {}
+        for kind in sorted(self.t["fish_weights"]):
+            positions = []
+            for x in self.t["fish_spawn_x"]:
+                for d in self.t["fish_spawn_depths"][kind]:
+                    pos = [float(x), float(d)]
+                    if all(math.dist(pos, live["pos"]) > clearance for live in self.fish):
+                        positions.append(pos)
+            if positions:
+                candidates[kind] = positions
+        if not candidates:
+            return
+
+        total_weight = sum(self.t["fish_weights"][kind] for kind in candidates)
+        choice = self.fish_spawn_rng.random() * total_weight
+        kind = next(iter(candidates))
+        for candidate_kind in candidates:
+            choice -= self.t["fish_weights"][candidate_kind]
+            if choice < 0:
+                kind = candidate_kind
+                break
+        pos = candidates[kind][self.fish_spawn_rng.randrange(len(candidates[kind]))]
+        fish = {"id": self.ids.new("F"), "kind": kind, "pos": pos,
+                "heading_deg": self.fish_spawn_rng.random() * 360.0, "age_ticks": 0}
+        self.fish.append(fish)
+        events.append(("fish_spawned", {"id": fish["id"], "kind": kind, "pos": list(pos)}))
 
     def _finish(self, reason, events):
         self.done = True

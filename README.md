@@ -25,6 +25,31 @@ Game cần chế độ **headless** theo Test Contract (`python3 -m chonoi.headl
 
 ## Tự do sáng tạo
 
+### Chơi thử quán
+
+```bash
+python3 -m chonoi.live --mode quan --scenario scenarios/restaurant-demo.json
+```
+
+Mở địa chỉ in ra. **WASD/mũi tên** để đi, **E** gần bếp để nấu đơn, **E**
+khi món chín để lấy món, rồi đến bàn nhấn **E** để phục vụ. **R** hoặc nút
+**Chơi lại** mở lại cùng seed và kho. Có nút cảm ứng trên màn hình.
+Khách đầu đến sau 2 giây theo preset. Tiền thu khi khách ăn xong hoặc hết ca;
+phục vụ sớm có thể được boa. Điểm = `earned + 100 × floor(reputation)`.
+
+Scenario trên cấp kho thử; quán mặc định kho rỗng theo contract. Để dùng kho
+thật: `python3 -m chonoi.live --mode quan --inventory kho.json`.
+[Bằng chứng Quán](docs/proof/phase-1/member-3-restaurant.md).
+
+### Sáng tạo của nhóm
+
+UI Quán nhìn từ trên xuống với sàn bè, nước sông, đèn vàng, Út Sen, bảng
+đơn/kiên nhẫn, bếp, kho khả dụng và nhật ký. Hình Canvas tự tạo, không có
+asset ngoài. UI chỉ gửi input/đọc snapshot, dùng cùng Session với headless;
+metadata HUD chỉ có ở live. Kho thử chỉ bật qua scenario. Bằng chứng lõi:
+`tests/test_quan_contract.py`, `tests/test_live.py`; kiểm UI thật tùy chọn:
+`python3 tools/check_restaurant_ui.py` (cần Chrome).
+
 Ngoài phần đề yêu cầu, nhóm được **thêm** nhân vật, loài cá/cây, sinh vật, món, bản đồ, cơ chế, câu chuyện, đồ họa, âm nhạc… với ba điều kiện: **không phá phần cố định** (tắt ở headless), ghi mục **"Sáng tạo của nhóm"** trong README của nhóm, và **làm lõi đúng trước**.
 
 ## Lịch 3 giờ

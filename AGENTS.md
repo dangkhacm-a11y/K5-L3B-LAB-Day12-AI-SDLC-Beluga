@@ -6,6 +6,7 @@
 - Test: `PYTHONPATH=tests:. python3 -m unittest discover -s tests -v`
 - Headless: `python3 -m chonoi.headless --mode gather|quan --seed 1 --ticks 600 --out out.jsonl`
 - Chơi thử trên trình duyệt: `python3 -m chonoi.live --mode gather|quan` (mở địa chỉ in ra; WASD, E, Space, R)
+- Quán có kho thử: `python3 -m chonoi.live --mode quan --scenario scenarios/restaurant-demo.json`
 
 ## Cấu trúc & quy ước
 - (Starter Python là TÙY CHỌN; nhóm có thể dùng ngôn ngữ khác nếu giữ Test Contract.) Khung do giảng viên cấp: `chonoi/{headless,inputs,scenario,contract,rng,ids,jsonl,inventory,runner,live}.py` và `chonoi/web/`. Hạn chế sửa; nếu phải sửa thì báo cả nhóm và ghi lại lý do.
@@ -23,7 +24,10 @@
 ## Quy tắc làm việc với agent
 - Mỗi agent một việc rõ ràng (một lát). Cho agent đọc PRD/ticket đúng phase và hợp đồng kho trước.
 - Agent làm xong phải chạy test và ghi kết quả vào mô tả commit hoặc `docs/proof/`; người đọc lại thay đổi trước khi đẩy.
+- Bàn giao Quán: state và order_status tách biệt; món `{order_id,dish_id,base_price}` theo PRD D–F. `scenario.py` kiểm fixture, `ids.py` hậu tố ASCII, `live.py` chọn UI/metadata. Lát 4 review interface đã đổi; xem `docs/plan/member-3-restaurant.md`.
 - Sáng tạo thêm được khuyến khích nhưng phải tắt ở headless (xem README, mục "Tự do sáng tạo").
 
 ## Skills / hooks của nhóm
-- (Ghi tên và khi nào dùng; tối thiểu 2 skill/hook/command nhóm tự viết, đặt ở `.agents/skills/` hoặc tương đương.)
+- Kiểm luật khách/timer/closing: `python3 -m unittest tests.test_quan_customers -v` (`tests/test_quan_customers.py`).
+- Kiểm hợp đồng Quán hộp đen: `PYTHONPATH=tests:. python3 -m unittest tests.test_quan_contract -v` (`tests/test_quan_contract.py`).
+- Kiểm UI thật bằng Chrome: `python3 tools/check_restaurant_ui.py` (tùy chọn; cần Chrome).

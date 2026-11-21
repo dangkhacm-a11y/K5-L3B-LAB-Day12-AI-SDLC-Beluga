@@ -9,7 +9,7 @@ import sys
 
 from .contract import load_contract
 from .errors import BadInput
-from .inputs import load_frames
+from .inputs import BUTTONS_V10, load_frames
 from .inventory import read_inventory
 from .runner import run
 from .scenario import load_scenario
@@ -62,7 +62,10 @@ def main(argv=None) -> int:
         contract = load_contract()
         tuning = contract["tuning"]
         scenario = load_scenario(a.scenario, a.mode, tuning)
-        frames = load_frames(a.inputs)
+        buttons = list(BUTTONS_V10)
+        if "weapon" in contract.get("extensions", []):
+            buttons.append("attack")
+        frames = load_frames(a.inputs, buttons=tuple(buttons))
         inventory = read_inventory(a.inventory) if a.inventory else None
         if inventory is not None and "stock" in scenario:
             raise BadInput("vừa có quan.stock vừa có --inventory")

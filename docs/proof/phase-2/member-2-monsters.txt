@@ -1,0 +1,14 @@
+# Phase 2 — Thành viên 2: Cá Sấu Năm Chèo, va chạm và ngất
+
+## Kiểm chứng
+
+- `PYTHONPATH=tests;. python -m unittest tests/test_gather_monsters.py tests/test_live.py tests/test_python_starter_units.py tests/test_smoke_p1.py -v` — đạt, 46/46 test (31.466s), gồm 13 test Cá Sấu + 5 test mở rộng Lao xua (`WeaponExtensionTests`) + regression smoke Phase 1 (`test_smoke_p1.py` cập nhật bỏ kiểm `attack` khi bật `extensions: ["weapon"]` theo TICKET-02 §4.2).
+- `PYTHONPATH=tests;. python -m unittest discover -s tests -v` — đạt toàn bộ bộ test trước đó (92/92) và sau khi thêm `WeaponExtensionTests` (+5 test mới).
+- `python -m chonoi.headless --mode gather --seed 1 --ticks 600 --out docs/proof/phase-2/gather-seed1.jsonl` — mã thoát `0`; snapshot có `monsters[]` với `M1` tuần tra từ `[60.0, 24.0]` tới `[64.0, 24.0]` ở `1.0 m/s` và `player.attack_cd_ticks`.
+
+## Phạm vi đã đối chiếu TICKET-02
+
+- Tuning `gather.monsters`: `invuln_ticks: 90`, `loss_ratio: 0.5`, `species.ca_sau` (`patrol_speed: 1.0`, `chase_speed: 3.0`, `detect_radius: 10.0`, `exit_radius: 16.0`, `depths: [10, 30]`, `hit_radius: 1.5`, `recoil_ticks: 60`, `recoil_dist: 2.0`), `spawns` (`M1` từ Ngày 1, `M2` từ Ngày 3).
+- Mở rộng `extensions: ["weapon"]`: `gather.weapon_cooldown_s: 3.0` (180 tick kể cả trượt), `shop.upgrades.weapon` cấp 1 (`price: 300`, `weapon_radius: 4.0`, `stun_s: 2.0` -> 120 bước) & cấp 2 (`price: 600`, `weapon_radius: 6.0`, `stun_s: 3.0` -> 180 bước), đẩy 3 m theo `id` (trùng tâm dùng `+x`, chặn biên/độ sâu), choáng ghi đè recoil/choáng cũ và tính cả bước bị Lao, hết choáng về `patrol` ở vị trí sau đẩy; phát `attack` + `monster_stunned`.
+- Thứ tự một bước Gather khớp mục 4.5: đồng hồ/cooldown/bất tử/hồi nút → bơi/oxy/ngạt (ngất nếu HP = 0) → Lao xua nếu có → cập nhật quái theo id rồi xét tối đa một hit (ngất nếu HP = 0) → tương tác (bến trước hái) → bắt cá → hết giờ → cá bơi/sinh cá.
+- Validation trong `chonoi/contract.py` và `chonoi/scenario.py` khớp mục 4.1 và 4.3 (`gather.monsters[]`, `player.attack_cd_ticks`, 2 waypoint, `target_idx`, `state`, `state_ticks_left`, `recoil_dir` vector đơn vị khi recoil).

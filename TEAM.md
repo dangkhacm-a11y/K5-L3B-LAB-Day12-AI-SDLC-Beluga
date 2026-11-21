@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | Đăng Khắc Hoàng Minh | `dangkhacm-a11y` | `sim/gather` | PO | `tad-4963` |
 | Trần Anh Dũng | `tad-4963` | `sim/gather`, `sim/quan`, `client/ui` | Dev / UI | `dangkhacm-a11y` |
-| Daniel Ha | `DanielHa01` | `sim/quan`, `contracts` | QA lead | `KhiemNTK` |
+| Hà Phan Đại Dương | `DanielHa01` | `sim/quan`, `contracts` | QA lead | `KhiemNTK` |
 | Nguyễn Trọng Khiêm | `KhiemNTK` | `sim/day`, `qa` | Integrator / Release | `DanielHa01` |
 
 **Vai quy trình:** PO (đầu mối hỏi giảng viên, giữ `docs/clarify.md`) · Integrator (giữ `docs/contracts/`, gắn tag) · QA lead · Scrum/Release. Có thể kiêm.

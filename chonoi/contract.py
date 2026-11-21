@@ -24,7 +24,10 @@ def load_contract(path=DEFAULT_PATH) -> dict:
             c = json.load(f)
     except (OSError, ValueError) as e:
         raise BadInput(f"không đọc được {path}: {e}")
-    validate_tuning(c.get("tuning"))
+    exts = c.get("extensions", [])
+    if not isinstance(exts, list) or not all(isinstance(x, str) and x for x in exts):
+        raise BadInput("extensions phải là mảng chuỗi")
+    validate_tuning(c.get("tuning"), extensions=exts)
     return c
 
 
@@ -115,6 +118,56 @@ def _validate_gather(g):
         _validate_fish_position(f"gather.fish_initial.{f['id']}", f["kind"], f["pos"], g)
     if len(positions) != 8:
         raise BadInput("tuning.gather.fish_initial phải đặt 8 đàn ở 8 vị trí khác nhau")
+    _validate_monster_tuning(g)
+
+
+def _validate_monster_tuning(g):
+    m = g.get("monsters")
+    if not isinstance(m, dict):
+        raise BadInput("tuning.gather.monsters phải là object")
+    _int_between("gather.monsters.invuln_ticks", m.get("invuln_ticks"), 1, 10_000)
+    _between("gather.monsters.loss_ratio", m.get("loss_ratio"), 0, 1)
+    species = m.get("species")
+    if not isinstance(species, dict) or "ca_sau" not in species:
+        raise BadInput("tuning.gather.monsters.species phải có ít nhất loài ca_sau")
+    b = g["bounds"]
+    for kind, sp in species.items():
+        if not isinstance(sp, dict):
+            raise BadInput(f"tuning.gather.monsters.species.{kind} phải là object")
+        _between(f"gather.monsters.species.{kind}.patrol_speed", sp.get("patrol_speed"), 0.1, 20)
+        _between(f"gather.monsters.species.{kind}.chase_speed", sp.get("chase_speed"), 0.1, 20)
+        _between(f"gather.monsters.species.{kind}.detect_radius", sp.get("detect_radius"), 0.5, 100)
+        _between(f"gather.monsters.species.{kind}.exit_radius", sp.get("exit_radius"), sp["detect_radius"], 100)
+        _between(f"gather.monsters.species.{kind}.hit_radius", sp.get("hit_radius"), 0.1, 10)
+        _int_between(f"gather.monsters.species.{kind}.recoil_ticks", sp.get("recoil_ticks"), 1, 10_000)
+        _between(f"gather.monsters.species.{kind}.recoil_dist", sp.get("recoil_dist"), 0, 50)
+        band = sp.get("depths")
+        if not (isinstance(band, list) and len(band) == 2 and all(_num(d) for d in band)
+                and g["surface_depth"] < band[0] < band[1] <= b["d"][1]):
+            raise BadInput(f"tuning.gather.monsters.species.{kind}.depths phải là dải độ sâu hợp lệ")
+    spawns = m.get("spawns")
+    if not isinstance(spawns, list) or not spawns:
+        raise BadInput("tuning.gather.monsters.spawns phải là mảng không rỗng")
+    seen = set()
+    for s in spawns:
+        if not isinstance(s, dict) or not isinstance(s.get("id"), str) or not s["id"] or s["id"] in seen:
+            raise BadInput("tuning.gather.monsters.spawns: mỗi con cần id duy nhất")
+        seen.add(s["id"])
+        kind = s.get("kind")
+        if kind not in species:
+            raise BadInput(f"tuning.gather.monsters.spawns.{s['id']}: kind không hợp lệ")
+        dlo, dhi = species[kind]["depths"]
+        _pos_in(f"gather.monsters.spawns.{s['id']}.pos", s.get("pos"), b, ("x", "d"))
+        if not (dlo <= s["pos"][1] <= dhi):
+            raise BadInput(f"tuning.gather.monsters.spawns.{s['id']}.pos nằm ngoài dải độ sâu loài {kind}")
+        wps = s.get("waypoints")
+        if not isinstance(wps, list) or len(wps) != 2:
+            raise BadInput(f"tuning.gather.monsters.spawns.{s['id']}.waypoints phải có đúng 2 điểm")
+        for idx, wp in enumerate(wps):
+            _pos_in(f"gather.monsters.spawns.{s['id']}.waypoints[{idx}]", wp, b, ("x", "d"))
+            if not (dlo <= wp[1] <= dhi):
+                raise BadInput(f"tuning.gather.monsters.spawns.{s['id']}.waypoints[{idx}] nằm ngoài dải độ sâu")
+        _int_between(f"gather.monsters.spawns.{s['id']}.from_day", s.get("from_day"), 1, 5)
 
 
 def _validate_fish_position(name, kind, pos, g):
@@ -159,13 +212,35 @@ def _validate_fish_tuning(g, species):
         raise BadInput("tuning.gather.fish_weights phải có ba trọng số dương tổng bằng 1")
 
 
-def validate_tuning(t):
+def _validate_weapon_tuning(t):
+    g = t["gather"]
+    _between("gather.weapon_cooldown_s", g.get("weapon_cooldown_s"), 0.1, 60)
+    if "weapon_push_dist" in g:
+        _between("gather.weapon_push_dist", g.get("weapon_push_dist"), 0, 50)
+    shop = t.get("shop")
+    if not isinstance(shop, dict) or not isinstance(shop.get("upgrades"), dict):
+        raise BadInput("mở rộng weapon cần tuning.shop.upgrades.weapon")
+    tiers = shop["upgrades"].get("weapon")
+    if not isinstance(tiers, list) or len(tiers) < 2:
+        raise BadInput("tuning.shop.upgrades.weapon phải có ít nhất 2 cấp")
+    for idx, tier in enumerate(tiers, start=1):
+        if not isinstance(tier, dict):
+            raise BadInput(f"tuning.shop.upgrades.weapon[{idx - 1}] phải là object")
+        _int_between(f"shop.upgrades.weapon[{idx - 1}].level", tier.get("level"), idx, idx)
+        _int_between(f"shop.upgrades.weapon[{idx - 1}].price", tier.get("price"), 1, 100_000)
+        _between(f"shop.upgrades.weapon[{idx - 1}].weapon_radius", tier.get("weapon_radius"), 0.5, 50)
+        _between(f"shop.upgrades.weapon[{idx - 1}].stun_s", tier.get("stun_s"), 0.1, 60)
+
+
+def validate_tuning(t, extensions=()):
     if not isinstance(t, dict):
         raise BadInput("thiếu khối tuning")
     g, q, menu = t.get("gather"), t.get("quan"), t.get("menu")
     if not isinstance(g, dict) or not isinstance(q, dict) or not isinstance(menu, dict):
         raise BadInput("tuning phải có gather, quan, menu")
     _validate_gather(g)
+    if "weapon" in extensions:
+        _validate_weapon_tuning(t)
     # Quán: dải hợp lệ P1 (PRD mục 13.2)
     _between("quan.duration_s", q.get("duration_s"), 60, 600)
     _bounds("quan", q.get("bounds"), ("x", "z"))
